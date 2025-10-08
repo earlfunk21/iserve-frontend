@@ -1,24 +1,59 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import { Stack } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
-import 'react-native-reanimated';
+import { SplashScreenController } from "@/components/splash";
+import "@/global.css";
+import { useOnboardStore } from "@/hooks/use-on-boarding";
+import { authClient } from "@/lib/auth-client";
+import { NAV_THEME } from "@/lib/theme";
+import { ThemeProvider } from "@react-navigation/native";
+import { PortalHost } from "@rn-primitives/portal";
+import { SplashScreen, Stack } from "expo-router";
+import { StatusBar } from "expo-status-bar";
+import { useColorScheme } from "nativewind";
+import { KeyboardProvider } from "react-native-keyboard-controller";
+import { SafeAreaProvider } from "react-native-safe-area-context";
+import { SWRConfig } from "swr";
 
-import { useColorScheme } from '@/hooks/use-color-scheme';
-
-export const unstable_settings = {
-  anchor: '(tabs)',
-};
+SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
-  const colorScheme = useColorScheme();
+  const { colorScheme } = useColorScheme();
 
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
-      </Stack>
-      <StatusBar style="auto" />
+    <ThemeProvider value={NAV_THEME[colorScheme ?? "light"]}>
+      <SWRConfig>
+        <StatusBar style={colorScheme === "dark" ? "light" : "dark"} />
+        <SplashScreenController />
+        <SafeAreaProvider>
+          <KeyboardProvider>
+            <RootNavigator />
+          </KeyboardProvider>
+        </SafeAreaProvider>
+        <PortalHost />
+      </SWRConfig>
     </ThemeProvider>
+  );
+}
+
+function RootNavigator() {
+  const { onboarded, loading } = useOnboardStore();
+  const { data: session, isPending } = authClient.useSession();
+
+  if (loading || isPending) {
+    return null;
+  }
+
+  return (
+    <Stack
+      screenOptions={{
+        headerShown: false,
+      }}
+    >
+      <Stack.Protected guard={onboarded}>
+        <Stack.Protected guard={!!session}>
+          <Stack.Screen name="(main)" />
+        </Stack.Protected>
+        <Stack.Screen name="(auth)" />
+      </Stack.Protected>
+      <Stack.Screen name="onboarding" />
+    </Stack>
   );
 }
