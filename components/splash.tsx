@@ -1,3 +1,4 @@
+import { useOnboardStore } from "@/hooks/use-on-boarding";
 import { authClient } from "@/lib/auth-client";
 import { SplashScreen } from "expo-router";
 

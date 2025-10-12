@@ -42,7 +42,6 @@ export default function EmailVerification({ handlePrevStep }: Props) {
     control,
     setError,
     handleSubmit,
-    getValues,
     formState: { errors },
   } = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -58,12 +57,11 @@ export default function EmailVerification({ handlePrevStep }: Props) {
     });
 
     if (error) {
-      setError("root", {
-        message: error.message,
-      });
+      setError("root", { message: error.message });
+      return;
     }
 
-    router.push("/")
+    router.push("/");
   };
 
   const handleSendVerificationOtp = async () => {
@@ -87,12 +85,12 @@ export default function EmailVerification({ handlePrevStep }: Props) {
 
   return (
     <View className="gap-6">
-      <Card className="border-border/0 sm:border-border pb-4 shadow-none sm:shadow-sm sm:shadow-black/5">
+      <Card className="rounded-3xl bg-card dark:bg-card border-border/0 sm:border-border pb-4 shadow-none sm:shadow-sm sm:shadow-black/5">
         <CardHeader>
-          <CardTitle className="text-center text-xl sm:text-left">
+          <CardTitle className="text-center text-xl text-foreground sm:text-left">
             Verify your email
           </CardTitle>
-          <CardDescription className="text-center sm:text-left">
+          <CardDescription className="text-center text-muted-foreground sm:text-left">
             Enter the verification code sent to {email}
           </CardDescription>
         </CardHeader>
@@ -107,7 +105,9 @@ export default function EmailVerification({ handlePrevStep }: Props) {
               )}
             </View>
             <View className="gap-1.5">
-              <Label htmlFor="code">Verification code</Label>
+              <Label htmlFor="code" className="text-foreground">
+                Verification code
+              </Label>
               <Controller
                 control={control}
                 name="otp"
@@ -123,6 +123,7 @@ export default function EmailVerification({ handlePrevStep }: Props) {
                     onBlur={onBlur}
                     onChangeText={onChange}
                     value={value}
+                    className="h-12 rounded-xl bg-muted/50 dark:bg-muted/30 text-center tracking-[12px] font-medium"
                   />
                 )}
               />
@@ -135,7 +136,7 @@ export default function EmailVerification({ handlePrevStep }: Props) {
                   restartCountdown();
                 }}
               >
-                <Text className="text-center text-xs">
+                <Text className="text-center text-xs text-muted-foreground">
                   Didn&apos;t receive the code? Resend{" "}
                   {countdown > 0 ? (
                     <Text className="text-xs" style={TABULAR_NUMBERS_STYLE}>
@@ -146,7 +147,10 @@ export default function EmailVerification({ handlePrevStep }: Props) {
               </Button>
             </View>
             <View className="gap-3">
-              <Button className="w-full" onPress={handleSubmit(onSubmit)}>
+              <Button
+                className="w-full rounded-full h-14 shadow-lg shadow-primary/20"
+                onPress={handleSubmit(onSubmit)}
+              >
                 <Text>Continue</Text>
               </Button>
               <Button
@@ -154,7 +158,7 @@ export default function EmailVerification({ handlePrevStep }: Props) {
                 className="mx-auto"
                 onPress={handlePrevStep}
               >
-                <Text>Cancel</Text>
+                <Text className="text-muted-foreground">Cancel</Text>
               </Button>
             </View>
           </View>

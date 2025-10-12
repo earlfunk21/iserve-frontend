@@ -63,12 +63,12 @@ export function SendVerificationEmail({ handleNextStep }: Props) {
 
   return (
     <View className="gap-6">
-      <Card className="border-border/0 shadow-none sm:border-border sm:shadow-sm sm:shadow-black/5">
+      <Card className="rounded-3xl bg-card dark:bg-card border-border/0 shadow-none sm:border-border sm:shadow-sm sm:shadow-black/5">
         <CardHeader>
-          <CardTitle className="text-center text-xl sm:text-left">
+          <CardTitle className="text-center text-xl text-foreground sm:text-left">
             Sign in to your app
           </CardTitle>
-          <CardDescription className="text-center sm:text-left">
+          <CardDescription className="text-center text-muted-foreground sm:text-left">
             Welcome back! Please sign in to continue
           </CardDescription>
         </CardHeader>
@@ -83,7 +83,9 @@ export function SendVerificationEmail({ handleNextStep }: Props) {
               )}
             </View>
             <View className="gap-1.5">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email" className="text-foreground">
+                Email
+              </Label>
               <Controller
                 control={control}
                 name="email"
@@ -100,12 +102,13 @@ export function SendVerificationEmail({ handleNextStep }: Props) {
                     onBlur={onBlur}
                     onChangeText={onChange}
                     value={value}
+                    className="h-12 rounded-xl bg-muted/50 dark:bg-muted/30"
                   />
                 )}
               />
             </View>
             <Button
-              className="rounded-full w-full h-14"
+              className="rounded-full w-full h-14 shadow-lg shadow-primary/20"
               onPress={handleSubmit(onSubmit)}
               disabled={isSubmitting}
             >

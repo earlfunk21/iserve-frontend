@@ -1,15 +1,27 @@
 import EmailVerification from "@/components/email-verification";
 import { SendVerificationEmail } from "@/components/sign-in-form";
-import { Button } from "@/components/ui/button";
-import { Text } from "@/components/ui/text";
+import { useGradualAnimation } from "@/hooks/use-gradual-animation";
 import { useAssets } from "expo-asset";
 import { Image } from "expo-image";
 import { useCallback, useState } from "react";
-import { StyleSheet, View } from "react-native";
+import {
+  KeyboardAvoidingView,
+  Platform,
+  StyleSheet,
+  View,
+} from "react-native";
+import Animated, { FadeIn, useAnimatedStyle } from "react-native-reanimated";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function SignInScreen() {
   const [assets] = useAssets([require("@/assets/images/icon.png")]);
   const [currentStep, setCurrentStep] = useState(0);
+  const { height } = useGradualAnimation();
+  const fakeView = useAnimatedStyle(() => {
+    return {
+      height: Math.abs(height.value),
+    };
+  }, []);
 
   const handleNextStep = useCallback(() => {
     setCurrentStep((prev) => prev + 1);
@@ -20,48 +32,35 @@ export default function SignInScreen() {
   }, []);
 
   return (
-    <View className="flex-1 items-center justify-center px-6">
-      <View className="h-52 w-52">
-        <Image
-          source={assets ? { uri: assets[0].uri } : undefined}
-          contentFit="cover"
-          transition={1000}
-          style={styles.image}
-        />
-      </View>
-      {currentStep === 0 && (
-        <>
-          {/* Welcome text */}
-          <View className="items-center mt-8">
-            <Text variant="h1" className="text-primary">
-              Welcome to iServe
-            </Text>
-            <Text
-              variant="p"
-              className="text-center mt-3 px-4 text-muted-foreground"
-            >
-              The best messenger and chat app of the century to make your day
-              great!
-            </Text>
-          </View>
+    <SafeAreaView className="flex-1 bg-background dark:bg-background">
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        className="flex-1 items-center justify-center px-6 gap-6"
+      >
+        <Animated.View
+          entering={FadeIn.duration(600)}
+          className="h-52 w-52 rounded-3xl overflow-hidden ring-1 ring-primary/20 dark:ring-primary/30 shadow-lg"
+        >
+          <Image
+            source={assets ? { uri: assets[0].uri } : undefined}
+            contentFit="cover"
+            transition={1000}
+            style={styles.image}
+          />
+        </Animated.View>
 
-          <Button
-            className="rounded-full w-full h-14"
-            onPress={() => setCurrentStep(1)}
-          >
-            <Text variant="large">Get Started</Text>
-          </Button>
-        </>
-      )}
-      {currentStep === 1 && (
-        <View className="w-full max-w-sm">
-          <SendVerificationEmail handleNextStep={handleNextStep} />
-        </View>
-      )}
-      {currentStep === 2 && (
-        <EmailVerification handlePrevStep={handlePrevStep} />
-      )}
-    </View>
+        {currentStep === 0 && (
+          <View className="w-full max-w-sm">
+            <SendVerificationEmail handleNextStep={handleNextStep} />
+          </View>
+        )}
+        {currentStep === 1 && (
+          <EmailVerification handlePrevStep={handlePrevStep} />
+        )}
+
+        <Animated.View style={fakeView} />
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 

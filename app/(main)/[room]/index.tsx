@@ -2,6 +2,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/text";
 import { useMarkRoomAsRead } from "@/hooks/mark-room-as-read";
+import { useGradualAnimation } from "@/hooks/use-gradual-animation";
 import { Message, useMessages } from "@/hooks/use-messages";
 import { MyRoomsKeys } from "@/hooks/use-my-rooms";
 import useChatSocket from "@/hooks/use-new-message";
@@ -13,28 +14,9 @@ import { Send } from "lucide-react-native";
 import { memo, useCallback } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { FlatList, TouchableOpacity, View } from "react-native";
-import { useKeyboardHandler } from "react-native-keyboard-controller";
-import Animated, {
-  useAnimatedStyle,
-  useSharedValue,
-} from "react-native-reanimated";
+import Animated, { useAnimatedStyle } from "react-native-reanimated";
 import { useSWRConfig } from "swr";
 import z from "zod";
-
-const useGradualAnimation = () => {
-  const height = useSharedValue(0);
-
-  useKeyboardHandler(
-    {
-      onMove: (event) => {
-        "worklet";
-        height.value = Math.max(event.height, 0);
-      },
-    },
-    []
-  );
-  return { height };
-};
 
 export default function HomeScreen() {
   const { room } = useLocalSearchParams<{ room: string }>();
