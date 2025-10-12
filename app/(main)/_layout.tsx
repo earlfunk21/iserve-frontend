@@ -4,10 +4,10 @@ import { Redirect, Slot } from "expo-router";
 import React from "react";
 
 export default function MainLayout() {
-  const { data: session } = authClient.useSession();
+  const { data: session, isPending } = authClient.useSession();
 
-  if (session?.session.expiresAt && session?.session.expiresAt < new Date()) {
-    authClient.signOut();
+  if (isPending) {
+    return null;
   }
 
   if (!session) {

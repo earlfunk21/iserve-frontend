@@ -1,28 +1,30 @@
 // app/screens/SettingsScreen.tsx
-import { Text } from '@/components/ui/text';
-import { authClient } from '@/lib/auth-client';
-import { useAssets } from 'expo-asset';
-import { useColorScheme } from 'nativewind';
-import React from 'react';
-import { Image, ScrollView, TouchableOpacity, View } from 'react-native';
-import QRCode from 'react-native-qrcode-svg';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Text } from "@/components/ui/text";
+import { authClient } from "@/lib/auth-client";
+import { useAssets } from "expo-asset";
+import { useColorScheme } from "nativewind";
+import React from "react";
+import { Image, ScrollView, View } from "react-native";
+import QRCode from "react-native-qrcode-svg";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 const menuItems = [
-  { label: 'Saved Messages', icon: 'bookmark-outline' },
-  { label: 'Recent Calls', icon: 'call-outline' },
-  { label: 'Devices', icon: 'laptop-outline' },
-  { label: 'Notifications', icon: 'notifications-outline' },
-  { label: 'Appearance', icon: 'color-palette-outline' },
-  { label: 'Language', icon: 'language-outline' },
-  { label: 'Privacy & Security', icon: 'lock-closed-outline' },
-  { label: 'Storage', icon: 'folder-outline' },
+  { label: "Saved Messages", icon: "bookmark-outline" },
+  { label: "Recent Calls", icon: "call-outline" },
+  { label: "Devices", icon: "laptop-outline" },
+  { label: "Notifications", icon: "notifications-outline" },
+  { label: "Appearance", icon: "color-palette-outline" },
+  { label: "Language", icon: "language-outline" },
+  { label: "Privacy & Security", icon: "lock-closed-outline" },
+  { label: "Storage", icon: "folder-outline" },
 ];
 
 export default function SettingsScreen() {
   const { colorScheme } = useColorScheme();
   const { data: session } = authClient.useSession();
-  const [assets] = useAssets([require('@/assets/images/person-placeholder.png')]);
+  const [assets] = useAssets([
+    require("@/assets/images/person-placeholder.png"),
+  ]);
 
   const handleLogout = () => {
     authClient.signOut();
@@ -39,7 +41,9 @@ export default function SettingsScreen() {
               className="h-24 w-24 rounded-full bg-gray-200"
             />
           </View>
-          <Text className="mt-3 text-lg font-semibold">{session?.user.name}</Text>
+          <Text className="mt-3 text-lg font-semibold">
+            {session?.user.name}
+          </Text>
           <Text variant="muted">{session?.user.email}</Text>
         </View>
 
@@ -65,12 +69,6 @@ export default function SettingsScreen() {
         <View className="items-center mt-4">
           <QRCode value={session?.user.id} size={200} />
         </View>
-
-        <TouchableOpacity
-          onPress={handleLogout}
-          className="mx-6 mb-20 mt-6 rounded-2xl bg-red-500 py-3">
-          <Text className="text-center text-base font-semibold text-white">Log Out</Text>
-        </TouchableOpacity>
       </SafeAreaView>
     </ScrollView>
   );
