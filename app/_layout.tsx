@@ -3,7 +3,7 @@ import "@/global.css";
 import { NAV_THEME } from "@/lib/theme";
 import { ThemeProvider } from "@react-navigation/native";
 import { PortalHost } from "@rn-primitives/portal";
-import { Slot, SplashScreen } from "expo-router";
+import { SplashScreen, Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useColorScheme } from "nativewind";
 import { KeyboardProvider } from "react-native-keyboard-controller";
@@ -22,7 +22,11 @@ export default function RootLayout() {
         <SplashScreenController />
         <SafeAreaProvider>
           <KeyboardProvider>
-            <Slot />
+            <Stack
+              screenOptions={{
+                headerShown: false,
+              }}
+            />
           </KeyboardProvider>
         </SafeAreaProvider>
         <PortalHost />

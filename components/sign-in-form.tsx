@@ -40,11 +40,6 @@ export function SendVerificationEmail({ handleNextStep }: Props) {
       email: "",
     },
   });
-  const passwordInputRef = React.useRef<TextInput>(null);
-
-  function onEmailSubmitEditing() {
-    passwordInputRef.current?.focus();
-  }
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     const { error } = await authClient.emailOtp.sendVerificationOtp({
@@ -96,7 +91,7 @@ export function SendVerificationEmail({ handleNextStep }: Props) {
                     keyboardType="email-address"
                     autoComplete="email"
                     autoCapitalize="none"
-                    onSubmitEditing={onEmailSubmitEditing}
+                    onSubmitEditing={handleSubmit(onSubmit)}
                     returnKeyType="next"
                     submitBehavior="submit"
                     onBlur={onBlur}

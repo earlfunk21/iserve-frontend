@@ -61,7 +61,7 @@ export default function EmailVerification({ handlePrevStep }: Props) {
       return;
     }
 
-    router.push("/");
+    router.replace("/");
   };
 
   const handleSendVerificationOtp = async () => {
@@ -123,6 +123,7 @@ export default function EmailVerification({ handlePrevStep }: Props) {
                     onBlur={onBlur}
                     onChangeText={onChange}
                     value={value}
+                    autoFocus
                     className="h-12 rounded-xl bg-muted/50 dark:bg-muted/30 text-center tracking-[12px] font-medium"
                   />
                 )}

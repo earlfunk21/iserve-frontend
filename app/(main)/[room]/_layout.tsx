@@ -1,16 +1,14 @@
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { THEME } from "@/lib/theme";
-import { HeaderBackButton } from "@react-navigation/elements";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
-import { CircleAlertIcon } from "lucide-react-native";
+import { ArrowLeftIcon, CircleAlertIcon } from "lucide-react-native";
 import { useColorScheme } from "nativewind";
 import React from "react";
 
 export default function RoomLayout() {
   const { colorScheme } = useColorScheme();
-  const { name } = useLocalSearchParams<{ room: string, name: string }>();
-  const router = useRouter();
+  const { name } = useLocalSearchParams<{ room: string; name: string }>();
 
   return (
     <Stack>
@@ -27,18 +25,6 @@ export default function RoomLayout() {
                 : THEME.dark.background,
           },
           headerRight: () => <RoomSettings />,
-          headerLeft: () => (
-            <HeaderBackButton
-              tintColor={
-                colorScheme === "light"
-                  ? THEME.light.primary
-                  : THEME.dark.primary
-              }
-              onPress={() => {
-                router.push("..");
-              }}
-            />
-          ),
           headerTitleAlign: "center",
         }}
       />
@@ -47,16 +33,33 @@ export default function RoomLayout() {
 }
 
 function RoomSettings() {
+  const router = useRouter();
   return (
     <Button
       onPressIn={() => {
-        // Navigate to the new conversation screen
+        router.push("..");
       }}
       size="icon"
       variant="ghost"
       className="rounded-full"
     >
       <Icon as={CircleAlertIcon} className="size-5" />
+    </Button>
+  );
+}
+
+function BackButton() {
+  const router = useRouter();
+  return (
+    <Button
+      onPressIn={() => {
+        router.push("..");
+      }}
+      size="icon"
+      variant="ghost"
+      className="rounded-full"
+    >
+      <Icon as={ArrowLeftIcon} className="size-5" />
     </Button>
   );
 }

@@ -1,5 +1,5 @@
 import { useOnboardStore } from "@/hooks/use-on-boarding";
-import { Redirect, Slot } from "expo-router";
+import { Redirect, Stack } from "expo-router";
 import React from "react";
 
 export default function SignInLayout() {
@@ -9,5 +9,5 @@ export default function SignInLayout() {
     return <Redirect href="/onboarding" />;
   }
 
-  return <Slot />;
+  return <Stack screenOptions={{ headerShown: false }} />;
 }
