@@ -4,34 +4,13 @@ import { Icon } from "@/components/ui/icon";
 import { Text } from "@/components/ui/text";
 import { MyRooms, useMyRooms } from "@/hooks/use-my-rooms";
 import { authClient, User } from "@/lib/auth-client";
+import { formatTime, getInitials } from "@/lib/utils";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { Asset, useAssets } from "expo-asset";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { SearchIcon } from "lucide-react-native";
 import { memo } from "react";
 import { ActivityIndicator, FlatList, Pressable, View } from "react-native";
-
-// Helpers: format time and initials for better UI polish
-function formatTime(input?: string | number | Date) {
-  if (!input) return "";
-  const d = new Date(input);
-  const now = new Date();
-  const isToday = d.toDateString() === now.toDateString();
-  if (isToday) {
-    return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-  }
-  const diff = now.getTime() - d.getTime();
-  const oneDay = 24 * 60 * 60 * 1000;
-  if (diff < 7 * oneDay) {
-    return d.toLocaleDateString([], { weekday: "short" });
-  }
-  return d.toLocaleDateString([], { month: "short", day: "numeric" });
-}
-function getInitials(name?: string) {
-  if (!name) return "";
-  const [a = "", b = ""] = name.trim().split(" ");
-  return (a[0] || "").concat(b[0] || "").toUpperCase();
-}
 
 export default function HomeScreen() {
   const [assets] = useAssets([

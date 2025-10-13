@@ -66,11 +66,11 @@ export default function SettingsScreen() {
           <QRCode value={session?.user.id} size={200} />
         </View>
 
-        <TouchableOpacity
+        {/* <TouchableOpacity
           onPress={handleLogout}
           className="mx-6 mb-20 mt-6 rounded-2xl bg-red-500 py-3">
           <Text className="text-center text-base font-semibold text-white">Log Out</Text>
-        </TouchableOpacity>
+        </TouchableOpacity> */}
       </SafeAreaView>
     </ScrollView>
   );

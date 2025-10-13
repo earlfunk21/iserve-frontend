@@ -65,7 +65,7 @@ export default function HomeScreen() {
               )}
               <Skeleton
                 className={cn(
-                  "h-10 rounded-2xl shadow-sm ring-1",
+                  "h-10 rounded-2xl shadow-sm",
                   isRight
                     ? "bg-blue-500/80 rounded-tr-none ring-black/5"
                     : "bg-gray-100 rounded-tl-none dark:bg-gray-900 dark:ring-white/10",
@@ -229,7 +229,7 @@ const TextItem = memo(({ item }: { item: Message }) => {
 
       <View
         className={cn(
-          "px-4 py-2 rounded-2xl max-w-[80%] shadow-sm ring-1 ring-black/5 dark:ring-white/10",
+          "px-4 py-2 rounded-2xl max-w-[80%] shadow-sm",
           isMe
             ? "bg-blue-500 rounded-tr-none"
             : "bg-gray-100 rounded-tl-none dark:bg-gray-900"

@@ -68,7 +68,7 @@ export default function MainLayout() {
           }}
         />
         <Stack.Screen
-          name="new-message"
+          name="new-contact"
           options={{
             headerShown: false,
           }}

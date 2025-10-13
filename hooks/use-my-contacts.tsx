@@ -1,14 +1,14 @@
 import api from "@/lib/api";
 import useSWR from "swr";
 
-export type MyReferral = {
+export type MyContact = {
   id: string;
   name: string;
   image: string;
 };
 
-export const useMyReferrals = () => {
-  return useSWR<MyReferral[]>(`/user/my-referrals`, (key: string) =>
+export const useMyContacts = () => {
+  return useSWR<MyContact[]>(`/user/my-contacts`, (key: string) =>
     api.get(key).then((res) => res.data)
   );
 };

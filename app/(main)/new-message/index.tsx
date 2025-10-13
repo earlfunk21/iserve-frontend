@@ -2,7 +2,6 @@ import { Input } from "@/components/ui/input";
 import { Text } from "@/components/ui/text";
 import { useGradualAnimation } from "@/hooks/use-gradual-animation";
 import { MyRooms } from "@/hooks/use-my-rooms";
-import { useSelectContact } from "@/hooks/use-select-contact";
 import { useSendPrivateMessage } from "@/hooks/use-send-private-message";
 import { cn } from "@/lib/utils";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -12,15 +11,15 @@ import { Send } from "lucide-react-native";
 import { Controller, useForm } from "react-hook-form";
 import { TouchableOpacity, View } from "react-native";
 import Animated, { useAnimatedStyle } from "react-native-reanimated";
+import { SafeAreaView } from "react-native-safe-area-context";
 import z from "zod";
 
 export default function NewMessageScreen() {
-  const { selectedId } = useSelectContact();
-  const { name } = useLocalSearchParams<{ name: string }>();
+  const { name, id } = useLocalSearchParams<{ name: string; id?: string }>();
   const headerHeight = useHeaderHeight();
   const { height } = useGradualAnimation();
 
-  if (!selectedId) {
+  if (!id) {
     return <Redirect href={`/new-message/select-contact`} withAnchor />;
   }
 
@@ -31,7 +30,7 @@ export default function NewMessageScreen() {
   }, []);
 
   return (
-    <View className="flex-1 px-2" style={{ paddingTop: headerHeight }}>
+    <SafeAreaView className="flex-1 px-2" style={{ paddingTop: headerHeight }}>
       <Stack.Screen options={{ title: name }} />
       <View className="flex-1 items-center">
         <Text variant="lead" className="text-muted-foreground">
@@ -41,9 +40,9 @@ export default function NewMessageScreen() {
           Start a private conversation with {name ?? "this contact"}.
         </Text>
       </View>
-      <SendMessageInput userId={selectedId} />
+      <SendMessageInput userId={id} />
       <Animated.View style={fakeView} />
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -78,11 +77,8 @@ const SendMessageInput = ({ userId }: SendMessageInputProps) => {
       },
       {
         onSuccess: async ({ data }: { data: MyRooms }) => {
-          console.log("Private message sent successfully:", data);
           const { id, participants } = data;
-          router.navigate(
-            `/${id}?name=${participants?.[0]?.name ?? "Unknown"}`
-          );
+          router.replace(`/${id}?name=${participants?.[0]?.name ?? "Unknown"}`);
         },
       }
     );
