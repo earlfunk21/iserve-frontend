@@ -21,6 +21,10 @@ export default function MainLayout() {
     return <Redirect href="/sign-in" />;
   }
 
+  if (!session.user.referrerId) {
+    return <Redirect href="/set-referral" />;
+  }
+
   return (
     <>
       <NewMessage session={session.session} />
@@ -63,6 +67,12 @@ export default function MainLayout() {
             headerShown: false,
           }}
         />
+        <Stack.Screen
+          name="new-message"
+          options={{
+            headerShown: false,
+          }}
+        />
       </Stack>
     </>
   );
@@ -75,7 +85,7 @@ function HeaderRight() {
     <View className="flex-row">
       <Button
         onPress={() => {
-          // Navigate to the new conversation screen
+          router.navigate("/new-message");
         }}
         size="icon"
         variant="ghost"

@@ -1,20 +1,22 @@
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/text";
-import { useMarkRoomAsRead } from "@/hooks/mark-room-as-read";
 import { useGradualAnimation } from "@/hooks/use-gradual-animation";
+import { useMarkRoomAsRead } from "@/hooks/use-mark-room-as-read";
 import { Message, useMessages } from "@/hooks/use-messages";
 import { MyRoomsKeys } from "@/hooks/use-my-rooms";
 import useChatSocket from "@/hooks/use-new-message";
 import { authClient } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useHeaderHeight } from "@react-navigation/elements";
 import { useFocusEffect, useLocalSearchParams } from "expo-router";
 import { Send } from "lucide-react-native";
 import { memo, useCallback } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { FlatList, TouchableOpacity, View } from "react-native";
 import Animated, { useAnimatedStyle } from "react-native-reanimated";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useSWRConfig } from "swr";
 import z from "zod";
 
@@ -25,6 +27,7 @@ export default function HomeScreen() {
   const { height } = useGradualAnimation();
   const { trigger } = useMarkRoomAsRead(room);
   const { mutate } = useSWRConfig();
+  const headerHeight = useHeaderHeight();
 
   const fakeView = useAnimatedStyle(() => {
     return {
@@ -44,7 +47,10 @@ export default function HomeScreen() {
 
   if (isLoading || isPending) {
     return (
-      <View className="flex-1 bg-white dark:bg-black px-4 py-6">
+      <View
+        className="flex-1 bg-white dark:bg-black px-4 py-6"
+        style={{ paddingTop: headerHeight }}
+      >
         {Array.from({ length: 12 }).map((_, i) => {
           const isRight = i % 3 === 0;
           const widths = ["w-24", "w-40", "w-56", "w-32", "w-64", "w-48"];
@@ -78,7 +84,7 @@ export default function HomeScreen() {
   }
 
   return (
-    <View className="flex-1 px-2 mt-safe-offset-2">
+    <SafeAreaView className="flex-1" style={{ paddingTop: headerHeight }}>
       <FlatList
         data={messages}
         keyExtractor={(item) => item.id}
@@ -91,12 +97,11 @@ export default function HomeScreen() {
         contentContainerStyle={{
           flexGrow: 1,
           justifyContent: "flex-end",
-          paddingTop: 8,
         }}
       />
       <SendMessageInput roomId={room} />
       <Animated.View style={fakeView} />
-    </View>
+    </SafeAreaView>
   );
 }
 
