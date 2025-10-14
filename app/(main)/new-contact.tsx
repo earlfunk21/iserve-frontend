@@ -36,7 +36,7 @@ export default function NewContactScreen() {
 
   // choice
   return (
-    <View className="mt-safe flex-1 items-center justify-center gap-6 bg-white px-6 dark:bg-black">
+    <View className="flex-1 items-center justify-center gap-6 bg-white px-6 dark:bg-black">
       <View className="w-full max-w-md items-center gap-4">
         <Text className="text-2xl font-semibold text-gray-900 dark:text-gray-100">
           New Contact

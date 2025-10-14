@@ -48,18 +48,3 @@ function RoomSettings() {
   );
 }
 
-function BackButton() {
-  const router = useRouter();
-  return (
-    <Button
-      onPressIn={() => {
-        router.push("..");
-      }}
-      size="icon"
-      variant="ghost"
-      className="rounded-full"
-    >
-      <Icon as={ArrowLeftIcon} className="size-5" />
-    </Button>
-  );
-}

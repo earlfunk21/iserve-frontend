@@ -4,13 +4,12 @@ import { Text } from "@/components/ui/text";
 import { authClient } from "@/lib/auth-client";
 import { Redirect, useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
-import { TextInput, View } from "react-native";
+import { TextInput, TouchableOpacity, View } from "react-native";
 
 type Mode = "choice" | "scan" | "manual";
 
-
 export default function SetReferralScreen() {
-  const { data: session } = authClient.useSession();
+  const { data: session, refetch } = authClient.useSession();
   const { referrerId } = useLocalSearchParams<{ referrerId?: string }>();
 
   // Moved above early returns to keep hooks order stable
@@ -29,7 +28,7 @@ export default function SetReferralScreen() {
   }
 
   if (session.user.referrerId) {
-    return <Redirect href="/" />;
+    return <Redirect href="/settings/update-profile" />;
   }
 
   const submitManual = async () => {
@@ -97,6 +96,17 @@ export default function SetReferralScreen() {
           <Button onPress={() => setMode("manual")}>
             <Text>Enter Code Manually</Text>
           </Button>
+          <Button onPress={() => refetch()}>
+            <Text>Refresh</Text>
+          </Button>
+          <TouchableOpacity
+            onPress={() => authClient.signOut()}
+            className="mx-6 mb-20 mt-6 rounded-2xl bg-red-500 py-3"
+          >
+            <Text className="text-center text-base font-semibold text-white">
+              Log Out
+            </Text>
+          </TouchableOpacity>
         </View>
       </View>
     </View>

@@ -56,9 +56,7 @@ export default function MainLayout() {
         <Stack.Screen
           name="settings"
           options={{
-            title: "Settings",
-            headerTransparent: true,
-            headerTitleAlign: "center",
+            headerShown: false,
           }}
         />
         <Stack.Screen
@@ -70,7 +68,7 @@ export default function MainLayout() {
         <Stack.Screen
           name="new-contact"
           options={{
-            headerShown: false,
+            title: "New Contact",
           }}
         />
       </Stack>
