@@ -1,6 +1,6 @@
-import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/text";
+import { Textarea } from "@/components/ui/textarea";
 import { useGradualAnimation } from "@/hooks/use-gradual-animation";
 import { useMarkRoomAsRead } from "@/hooks/use-mark-room-as-read";
 import { Message, useMessages } from "@/hooks/use-messages";
@@ -16,7 +16,6 @@ import { memo, useCallback } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { FlatList, TouchableOpacity, View } from "react-native";
 import Animated, { useAnimatedStyle } from "react-native-reanimated";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { useSWRConfig } from "swr";
 import z from "zod";
 
@@ -84,7 +83,7 @@ export default function HomeScreen() {
   }
 
   return (
-    <SafeAreaView className="flex-1" style={{ paddingTop: headerHeight }}>
+    <View className="flex-1" style={{ paddingTop: headerHeight }}>
       <FlatList
         data={messages}
         keyExtractor={(item) => item.id}
@@ -101,7 +100,7 @@ export default function HomeScreen() {
       />
       <SendMessageInput roomId={room} />
       <Animated.View style={fakeView} />
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -162,21 +161,17 @@ const SendMessageInput = memo(({ roomId }: SendMessageInputProps) => {
 
   return (
     <View className="px-3 pb-4 pt-2">
-      <View className="flex-row items-center">
+      <View className="flex-row items-end">
         <Controller
           control={control}
           name="content"
           render={({ field: { onChange, onBlur, value } }) => (
-            <Input
+            <Textarea
               onBlur={onBlur}
               onChangeText={onChange}
               value={value}
-              className="flex-1 rounded-full px-4 bg-gray-100 dark:bg-gray-900"
+              className="flex-1 rounded-2xl px-4 bg-gray-100 dark:bg-gray-900 pt-2"
               placeholder="Type a message…"
-              autoCapitalize="sentences"
-              onSubmitEditing={handleSubmit(onSubmit)}
-              returnKeyType="send"
-              submitBehavior="submit"
             />
           )}
         />

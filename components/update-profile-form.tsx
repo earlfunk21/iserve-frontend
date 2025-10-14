@@ -1,6 +1,10 @@
 import { authClient } from "@/lib/auth-client";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { AlertCircleIcon, CheckCircle2Icon } from "lucide-react-native";
+import {
+  AlertCircleIcon,
+  CheckCircle2Icon,
+  HomeIcon,
+} from "lucide-react-native";
 import React, { useMemo } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { View } from "react-native";
@@ -18,6 +22,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Text } from "@/components/ui/text";
+import { Link } from "expo-router";
+import { Icon } from "./ui/icon";
 
 const formSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
@@ -104,11 +110,21 @@ export function UpdateProfileForm() {
       </CardContent>
       <CardFooter>
         {isSubmitSuccessful && (
-          <Alert icon={CheckCircle2Icon} className="border-green-800 rounded-xl" iconClassName="text-green-500">
+          <Alert
+            icon={CheckCircle2Icon}
+            className="border-green-800 rounded-xl"
+            iconClassName="text-green-500"
+          >
             <AlertTitle className="text-green-800">Success</AlertTitle>
             <AlertDescription className="text-green-800">
               Your profile has been updated successfully.
             </AlertDescription>
+            <Link href={`/`} asChild>
+              <Button variant="outline" className="rounded-full active:bg-primary/40">
+                <Icon className="text-primary" as={HomeIcon} />
+                <Text className="text-primary">Go to home</Text>
+              </Button>
+            </Link>
           </Alert>
         )}
       </CardFooter>

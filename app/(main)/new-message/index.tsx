@@ -1,5 +1,6 @@
 import { Input } from "@/components/ui/input";
 import { Text } from "@/components/ui/text";
+import { Textarea } from "@/components/ui/textarea";
 import { useGradualAnimation } from "@/hooks/use-gradual-animation";
 import { MyRooms } from "@/hooks/use-my-rooms";
 import { useSendPrivateMessage } from "@/hooks/use-send-private-message";
@@ -8,6 +9,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { Redirect, Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { Send } from "lucide-react-native";
+import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { TouchableOpacity, View } from "react-native";
 import Animated, { useAnimatedStyle } from "react-native-reanimated";
@@ -89,21 +91,17 @@ const SendMessageInput = ({ userId }: SendMessageInputProps) => {
 
   return (
     <View className="px-3 pb-4 pt-2">
-      <View className="flex-row items-center">
+      <View className="flex-row items-end">
         <Controller
           control={control}
           name="content"
           render={({ field: { onChange, onBlur, value } }) => (
-            <Input
+            <Textarea
               onBlur={onBlur}
               onChangeText={onChange}
               value={value}
-              className="flex-1 rounded-full px-4 bg-gray-100 dark:bg-gray-900"
+              className="flex-1 rounded-2xl px-4 bg-gray-100 dark:bg-gray-900 pt-2"
               placeholder="Type a message…"
-              autoCapitalize="sentences"
-              onSubmitEditing={handleSubmit(onSubmit)}
-              returnKeyType="send"
-              submitBehavior="submit"
             />
           )}
         />
