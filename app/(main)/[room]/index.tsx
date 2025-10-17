@@ -18,8 +18,9 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { useFocusEffect, useLocalSearchParams } from "expo-router";
 import { Send } from "lucide-react-native";
-import { memo, useCallback, useEffect, useMemo, useState } from "react";
+import { memo, useCallback, useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
+import type { ViewToken } from "react-native";
 import { FlatList, TouchableOpacity, View } from "react-native";
 import Animated, { useAnimatedStyle } from "react-native-reanimated";
 import { useSWRConfig } from "swr";
@@ -32,15 +33,29 @@ export default function HomeScreen() {
     isLoading,
     mutate: mutateMessages,
   } = useMessages(room);
-  const { data: session, isPending } = authClient.useSession();
+  const { data: session } = authClient.useSession();
   const { height } = useGradualAnimation();
   const { trigger } = useMarkRoomAsRead(room);
   const { mutate } = useSWRConfig();
   const headerHeight = useHeaderHeight();
-  const { data: roomParticipants, isLoading: isLoadingRoomParticipants } =
-    useRoomParticipants(room);
+  const { data: roomParticipants } = useRoomParticipants(room);
   const { privateKey } = usePrivateKeyStore();
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [decryptedMap, setDecryptedMap] = useState<Record<string, string>>({});
+
+  const keyExtractor = useCallback((item: Message) => item.id, []);
+  const renderItem = useCallback(
+    ({ item }: { item: Message }) => {
+      if (!session?.user) return null;
+      return (
+        <TextItem
+          item={item}
+          user={session.user}
+          decryptedContent={decryptedMap[item.id]}
+        />
+      );
+    },
+    [session?.user, decryptedMap]
+  );
 
   const fakeView = useAnimatedStyle(() => {
     return {
@@ -58,95 +73,108 @@ export default function HomeScreen() {
     }, [])
   );
 
-  useEffect(() => {
-    if (
-      !!session &&
-      !!encryptedMessages &&
-      !!roomParticipants &&
-      !!privateKey
-    ) {
-      getDecryptedMessages();
-    }
-  }, [session, encryptedMessages, roomParticipants, privateKey]);
+  const decryptVisible = useCallback(
+    async (items: Message[]) => {
+      if (!session?.user || !privateKey) return;
 
-  if (isLoading || isPending || isLoadingRoomParticipants) {
-    return (
-      <View
-        className="flex-1 bg-white dark:bg-black px-4 py-6"
-        style={{ paddingTop: headerHeight }}
-      >
-        {Array.from({ length: 12 }).map((_, i) => {
-          const isRight = i % 3 === 0;
-          const widths = ["w-24", "w-40", "w-56", "w-32", "w-64", "w-48"];
-          const w = widths[i % widths.length];
-          return (
-            <View
-              key={i}
-              className={cn("mb-4", isRight ? "items-end" : "items-start")}
-            >
-              {!isRight && (
-                <Skeleton className="h-3 w-16 mb-2 rounded-md bg-gray-100 dark:bg-gray-900" />
-              )}
-              <Skeleton
-                className={cn(
-                  "h-10 rounded-2xl shadow-sm",
-                  isRight
-                    ? "bg-blue-500/80 rounded-tr-none ring-black/5"
-                    : "bg-gray-100 rounded-tl-none dark:bg-gray-900 dark:ring-white/10",
-                  w
-                )}
-              />
-            </View>
-          );
-        })}
-      </View>
-    );
-  }
+      const toDecrypt = items.filter((m) => !decryptedMap[m.id]);
+      if (toDecrypt.length === 0) return;
 
-  if (!session || !encryptedMessages || !roomParticipants || !privateKey) {
-    return null;
-  }
+      try {
+        const results = await Promise.all(
+          toDecrypt.map(async (msg) => {
+            const decrypted = await decryptEnvelope(msg.content, {
+              publicKey: session.user!.publicKey,
+              secretKey: privateKey,
+            });
+            return { id: msg.id, decrypted } as const;
+          })
+        );
 
-  const getDecryptedMessages = async () => {
-    const decryptedMessages = await Promise.all(
-      encryptedMessages.map(async (message) => {
-        const content = await decryptEnvelope(message.content, {
-          publicKey: session.user.publicKey,
-          secretKey: privateKey,
+        setDecryptedMap((prev) => {
+          const next = { ...prev };
+          for (const r of results) next[r.id] = r.decrypted;
+          return next;
         });
+      } catch (e) {
+        // Swallow individual decrypt errors; leave message as pending
+      }
+    },
+    [session?.user, privateKey, decryptedMap]
+  );
 
-        return {
-          ...message,
-          content: content,
-        };
-      })
-    );
-    setMessages(decryptedMessages);
-  };
+  const onViewableItemsChanged = useCallback(
+    ({ viewableItems }: { viewableItems: Array<ViewToken> }) => {
+      const items: Message[] = viewableItems
+        .map((v) => v.item as Message)
+        .filter(Boolean);
+      if (items.length) decryptVisible(items);
+    },
+    [decryptVisible]
+  );
 
   return (
     <View className="flex-1" style={{ paddingTop: headerHeight }}>
       <FlatList
-        data={messages}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item }) => <TextItem item={item} user={session.user} />}
+        data={encryptedMessages || []}
+        keyExtractor={keyExtractor}
+        renderItem={renderItem}
         showsVerticalScrollIndicator={false}
         inverted
-        initialNumToRender={10}
-        maxToRenderPerBatch={10}
-        windowSize={10}
+        initialNumToRender={12}
+        maxToRenderPerBatch={12}
+        windowSize={15}
+        maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
+        removeClippedSubviews
+        keyboardShouldPersistTaps="handled"
+        onViewableItemsChanged={onViewableItemsChanged}
+        viewabilityConfig={{ itemVisiblePercentThreshold: 25 }}
+        ListEmptyComponent={
+          <View className="bg-white dark:bg-black px-4 py-6">
+            {Array.from({ length: 10 }).map((_, i) => {
+              const isRight = i % 3 === 0;
+              const widths = ["w-24", "w-40", "w-56", "w-32", "w-64", "w-48"];
+              const w = widths[i % widths.length];
+              return (
+                <View
+                  key={i}
+                  className={cn("mb-4", isRight ? "items-end" : "items-start")}
+                >
+                  {!isRight && (
+                    <Skeleton className="h-3 w-16 mb-2 rounded-md bg-gray-100 dark:bg-gray-900" />
+                  )}
+                  <Skeleton
+                    className={cn(
+                      "h-10 rounded-2xl shadow-sm",
+                      isRight
+                        ? "bg-blue-500/80 rounded-tr-none ring-black/5"
+                        : "bg-gray-100 rounded-tl-none dark:bg-gray-900 dark:ring-white/10",
+                      w
+                    )}
+                  />
+                </View>
+              );
+            })}
+          </View>
+        }
         contentContainerStyle={{
           flexGrow: 1,
           justifyContent: "flex-end",
         }}
       />
-      <SendMessageInput
-        roomId={room}
-        mutateMessages={mutateMessages}
-        roomParticipants={roomParticipants}
-        privateKey={privateKey}
-      />
-      <Animated.View style={fakeView} />
+      {!!session && !!privateKey && !!roomParticipants ? (
+        <SendMessageInput
+          roomId={room}
+          mutateMessages={mutateMessages}
+          roomParticipants={roomParticipants}
+          privateKey={privateKey}
+          user={session.user}
+          onOptimisticMessage={(id, content) =>
+            setDecryptedMap((prev) => ({ ...prev, [id]: content }))
+          }
+        />
+      ) : null}
+      <Animated.View pointerEvents="none" style={fakeView} />
     </View>
   );
 }
@@ -169,6 +197,8 @@ type SendMessageInputProps = {
   ) => Promise<Message[] | undefined>;
   roomParticipants: RoomParticipants;
   privateKey: string;
+  user: User;
+  onOptimisticMessage: (id: string, content: string) => void;
 };
 
 const SendMessageInput = memo(
@@ -177,6 +207,8 @@ const SendMessageInput = memo(
     mutateMessages,
     roomParticipants,
     privateKey,
+    user,
+    onOptimisticMessage,
   }: SendMessageInputProps) => {
     const { control, handleSubmit, reset, watch } = useForm<
       z.infer<typeof formSchema>
@@ -187,24 +219,18 @@ const SendMessageInput = memo(
         roomId: roomId,
       },
     });
-    const { data: session } = authClient.useSession();
     const { trigger } = useSendMessage();
-
-    if (!session) {
-      return null;
-    }
 
     const onSubmit = async (values: z.infer<typeof formSchema>) => {
       const trimmed = values.content.trim();
       if (!trimmed) return;
 
-      const publicKeys =
-        roomParticipants.participants.map((p) => p.publicKey) || [];
+      const publicKeys = roomParticipants.participants.map((p) => p.publicKey);
 
       const armoredContent = await encryptForRecipients(
         trimmed,
         {
-          publicKey: session.user.publicKey,
+          publicKey: user.publicKey,
           secretKey: privateKey,
         },
         publicKeys
@@ -214,9 +240,9 @@ const SendMessageInput = memo(
         content: JSON.stringify(armoredContent),
         id: `optimistic-${Date.now()}`,
         sender: {
-          id: session.user.id,
-          name: session.user.name,
-          publicKey: session.user.publicKey,
+          id: user.id,
+          name: user.name,
+          publicKey: user.publicKey,
         },
         createdAt: new Date(),
       };
@@ -225,6 +251,9 @@ const SendMessageInput = memo(
         (current: Message[] = []) => [optimisticMessage, ...current],
         false
       );
+
+      // Seed decrypted cache so the optimistic message renders immediately
+      onOptimisticMessage(optimisticMessage.id, trimmed);
 
       trigger(
         { content: JSON.stringify(armoredContent), roomId },
@@ -247,8 +276,8 @@ const SendMessageInput = memo(
 
     const contentValue = watch("content");
     const canSend = useMemo(
-      () => (contentValue?.trim().length ?? 0) > 0,
-      [contentValue]
+      () => (contentValue?.trim().length ?? 0) > 0 && !!roomParticipants,
+      [contentValue, roomParticipants]
     );
 
     return (
@@ -289,44 +318,63 @@ const SendMessageInput = memo(
 type TextItemProps = {
   item: Message;
   user: User;
+  decryptedContent?: string;
 };
 
-const TextItem = memo(({ item, user }: TextItemProps) => {
-  const isMe = item.sender.id === user.id;
+const TextItem = memo(
+  ({ item, user, decryptedContent }: TextItemProps) => {
+    const isMe = item.sender.id === user.id;
+    const timeText = useMemo(
+      () => formatTime(item.createdAt),
+      [item.createdAt]
+    );
 
-  return (
-    <View className={cn("mb-3 px-2", isMe ? "items-end" : "items-start")}>
-      {!isMe && (
-        <Text className="text-xs text-gray-500 dark:text-gray-400 ml-2 mb-1">
-          {item.sender.name}
-        </Text>
-      )}
-
-      <View
-        className={cn(
-          "px-4 py-2 rounded-2xl max-w-[80%] shadow-sm",
-          isMe
-            ? "bg-blue-500 rounded-tr-none"
-            : "bg-gray-100 rounded-tl-none dark:bg-gray-900"
+    return (
+      <View className={cn("mb-3 px-2", isMe ? "items-end" : "items-start")}>
+        {!isMe && (
+          <Text className="text-xs text-gray-500 dark:text-gray-400 ml-2 mb-1">
+            {item.sender.name}
+          </Text>
         )}
-      >
-        <Text
+
+        <View
           className={cn(
-            isMe ? "text-white" : "text-gray-900 dark:text-gray-100"
+            "px-4 py-2 rounded-2xl max-w-[80%] shadow-sm",
+            isMe
+              ? "bg-blue-500 rounded-tr-none"
+              : "bg-gray-100 rounded-tl-none dark:bg-gray-900",
+            !decryptedContent && "w-24"
           )}
         >
-          {item.content}
+          <Text
+            className={cn(
+              isMe ? "text-white" : "text-gray-900 dark:text-gray-100"
+            )}
+          >
+            {decryptedContent}
+          </Text>
+        </View>
+
+        <Text
+          className={cn(
+            "mt-1 text-[10px] text-gray-500 dark:text-gray-400",
+            isMe ? "mr-3" : "ml-3"
+          )}
+        >
+          {timeText}
         </Text>
       </View>
-
-      <Text
-        className={cn(
-          "mt-1 text-[10px] text-gray-500 dark:text-gray-400",
-          isMe ? "mr-3" : "ml-3"
-        )}
-      >
-        {formatTime(item.createdAt)}
-      </Text>
-    </View>
-  );
-});
+    );
+  },
+  (prev, next) => {
+    return (
+      prev.user.id === next.user.id &&
+      prev.item.id === next.item.id &&
+      prev.decryptedContent === next.decryptedContent &&
+      Number(new Date(prev.item.createdAt)) ===
+        Number(new Date(next.item.createdAt)) &&
+      prev.item.sender.id === next.item.sender.id &&
+      prev.item.sender.name === next.item.sender.name
+    );
+  }
+);

@@ -176,6 +176,6 @@ export async function decryptEnvelope(
   }
 
   const plaintext = util.encodeUTF8(plaintextBytes);
-
+  
   return plaintext;
 }
