@@ -1,18 +1,19 @@
 // Ensure a secure PRNG is available in React Native environments before using tweetnacl
 // This polyfills global.crypto.getRandomValues
 import "react-native-get-random-values";
+import { Buffer } from "buffer";
+global.Buffer = Buffer;
 
 // tweetnacl-group-e2ee.ts
+import pako from "pako";
 import nacl from "tweetnacl";
-import * as util from "tweetnacl-util";
+import util from "tweetnacl-util";
 
 /**
  * Helper encode/decode utilities (Base64 + UTF8)
  */
 const encodeBase64 = (u8: Uint8Array) => util.encodeBase64(u8);
 const decodeBase64 = (s: string) => util.decodeBase64(s);
-const encodeUTF8 = (u8: Uint8Array) => util.encodeUTF8(u8);
-const decodeUTF8 = (s: string) => util.decodeUTF8(s);
 
 /**
  * Key pair structure (base64 encoding for transport/storage)
@@ -38,9 +39,6 @@ type MessageEnvelope = {
   ciphertextNonce: string; // base64
   // list of per-recipient encrypted symmetric keys
   recipients: EncryptedForRecipient[];
-  // optional metadata (timestamp, messageId, etc)
-  timestamp: number;
-  messageId?: string;
 };
 
 /**
@@ -68,7 +66,7 @@ export async function encryptForRecipients(
   plaintext: string,
   senderKeyPair: KeyPairB64,
   recipientsPublicKeysB64: string[] // array of base64 public keys
-): Promise<MessageEnvelope> {
+) {
   // 1. symmetric key
   const symmetricKey = nacl.randomBytes(nacl.secretbox.keyLength); // 32 bytes
 
@@ -108,11 +106,12 @@ export async function encryptForRecipients(
     ciphertext: encodeBase64(ciphertext),
     ciphertextNonce: encodeBase64(ciphertextNonce),
     recipients,
-    timestamp: Date.now(),
-    messageId: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
   };
 
-  return envelope;
+  const compressed = pako.deflate(JSON.stringify(envelope));
+  const compressedB64 = Buffer.from(compressed).toString("base64");
+
+  return compressedB64;
 }
 
 /**
@@ -124,12 +123,12 @@ export async function encryptForRecipients(
  * 3. use nacl.secretbox.open(ciphertext, ciphertextNonce, symmetricKey) to recover plaintext
  */
 export async function decryptEnvelope(
-  envelope: MessageEnvelope,
+  compressedB64: string,
   recipientKeyPair: KeyPairB64
-): Promise<{
-  plaintext: string;
-  metadata: { senderPublicKey: string; messageId?: string; timestamp: number };
-}> {
+) {
+  const envelope = JSON.parse(
+    pako.inflate(Buffer.from(compressedB64, "base64"), { to: "string" })
+  ) as MessageEnvelope;
   const recipientPublicKeyB64 = recipientKeyPair.publicKey;
   const recipientSecretKey = decodeBase64(recipientKeyPair.secretKey);
 
@@ -178,12 +177,5 @@ export async function decryptEnvelope(
 
   const plaintext = util.encodeUTF8(plaintextBytes);
 
-  return {
-    plaintext,
-    metadata: {
-      senderPublicKey: envelope.senderPublicKey,
-      messageId: envelope.messageId,
-      timestamp: envelope.timestamp,
-    },
-  };
+  return plaintext;
 }

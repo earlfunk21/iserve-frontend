@@ -110,14 +110,14 @@ export default function HomeScreen() {
   const getDecryptedMessages = async () => {
     const decryptedMessages = await Promise.all(
       encryptedMessages.map(async (message) => {
-        const decrypted = await decryptEnvelope(JSON.parse(message.content), {
+        const content = await decryptEnvelope(message.content, {
           publicKey: session.user.publicKey,
           secretKey: privateKey,
         });
 
         return {
           ...message,
-          content: decrypted.plaintext,
+          content: content,
         };
       })
     );
