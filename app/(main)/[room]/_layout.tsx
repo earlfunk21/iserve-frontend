@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { THEME } from "@/lib/theme";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
-import { ArrowLeftIcon, CircleAlertIcon } from "lucide-react-native";
+import { CircleAlertIcon } from "lucide-react-native";
 import { useColorScheme } from "nativewind";
 import React from "react";
 
@@ -47,4 +47,3 @@ function RoomSettings() {
     </Button>
   );
 }
-

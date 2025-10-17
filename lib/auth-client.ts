@@ -20,8 +20,10 @@ export const authClient = createAuthClient({
         },
         referrerId: {
           type: 'string',
-          required: true,
         },
+        publicKey: {
+          type: 'string',
+        }
       },
     }),
     emailOTPClient()

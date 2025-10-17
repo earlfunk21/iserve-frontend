@@ -8,6 +8,7 @@ export type Message = {
   sender: {
     name: string;
     id: string;
+    publicKey: string;
   };
 };
 

@@ -1,5 +1,5 @@
+import useNewMessageSocket from "@/hooks/use-chat-socket";
 import { MyRoomsKeys } from "@/hooks/use-my-rooms";
-import useNewMessageSocket from "@/hooks/use-new-message";
 import { Session } from "@/lib/auth-client";
 import { useEffect } from "react";
 import { useSWRConfig } from "swr";

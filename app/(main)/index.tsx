@@ -40,7 +40,6 @@ export default function HomeScreen() {
       style={{ paddingTop: headerHeight }}
     >
       <View className="px-4">
-        {/* Add: chip to filter rooms with messages */}
         <View className="mt-3 flex-row">
           <Pressable
             onPress={() => router.setParams({ status: undefined })}

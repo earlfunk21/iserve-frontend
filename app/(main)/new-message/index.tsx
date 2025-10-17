@@ -1,15 +1,17 @@
-import { Input } from "@/components/ui/input";
 import { Text } from "@/components/ui/text";
 import { Textarea } from "@/components/ui/textarea";
 import { useGradualAnimation } from "@/hooks/use-gradual-animation";
 import { MyRooms } from "@/hooks/use-my-rooms";
+import { usePrivateKeyStore } from "@/hooks/use-private-key";
 import { useSendPrivateMessage } from "@/hooks/use-send-private-message";
+import { authClient } from "@/lib/auth-client";
+import { encryptForRecipients } from "@/lib/crypto";
 import { cn } from "@/lib/utils";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { Redirect, Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { Send } from "lucide-react-native";
-import { useState } from "react";
+import { useMemo } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { TouchableOpacity, View } from "react-native";
 import Animated, { useAnimatedStyle } from "react-native-reanimated";
@@ -17,7 +19,11 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import z from "zod";
 
 export default function NewMessageScreen() {
-  const { name, id } = useLocalSearchParams<{ name: string; id?: string }>();
+  const { name, id, publicKey } = useLocalSearchParams<{
+    name: string;
+    id?: string;
+    publicKey: string;
+  }>();
   const headerHeight = useHeaderHeight();
   const { height } = useGradualAnimation();
 
@@ -42,7 +48,7 @@ export default function NewMessageScreen() {
           Start a private conversation with {name ?? "this contact"}.
         </Text>
       </View>
-      <SendMessageInput userId={id} />
+      <SendMessageInput userId={id} publicKey={publicKey} />
       <Animated.View style={fakeView} />
     </SafeAreaView>
   );
@@ -55,9 +61,10 @@ export const formSchema = z.object({
 
 type SendMessageInputProps = {
   userId: string;
+  publicKey: string;
 };
 
-const SendMessageInput = ({ userId }: SendMessageInputProps) => {
+const SendMessageInput = ({ userId, publicKey }: SendMessageInputProps) => {
   const { control, handleSubmit, watch } = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -67,14 +74,31 @@ const SendMessageInput = ({ userId }: SendMessageInputProps) => {
   });
   const { trigger } = useSendPrivateMessage();
   const router = useRouter();
+  const { privateKey } = usePrivateKeyStore();
+  const { data: session } = authClient.useSession();
+
+  if (!session || !privateKey) {
+    return null;
+  }
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     const trimmed = values.content.trim();
     if (!trimmed) return;
 
+    const publicKeys = [session.user.publicKey, publicKey];
+
+    const armoredContent = await encryptForRecipients(
+      trimmed,
+      {
+        publicKey: session.user.publicKey,
+        secretKey: privateKey,
+      },
+      publicKeys
+    );
+
     trigger(
       {
-        content: trimmed,
+        content: JSON.stringify(armoredContent),
         receiver: userId,
       },
       {
@@ -87,7 +111,10 @@ const SendMessageInput = ({ userId }: SendMessageInputProps) => {
   };
 
   const contentValue = watch("content");
-  const canSend = (contentValue?.trim().length ?? 0) > 0;
+  const canSend = useMemo(
+    () => (contentValue?.trim().length ?? 0) > 0,
+    [contentValue]
+  );
 
   return (
     <View className="px-3 pb-4 pt-2">
@@ -100,7 +127,7 @@ const SendMessageInput = ({ userId }: SendMessageInputProps) => {
               onBlur={onBlur}
               onChangeText={onChange}
               value={value}
-              className="flex-1 rounded-2xl px-4 bg-gray-100 dark:bg-gray-900 pt-2"
+              className="flex-1 rounded-2xl px-4 bg-gray-100 dark:bg-gray-900 pt-2 placeholder:text-primary-foreground"
               placeholder="Type a message…"
             />
           )}

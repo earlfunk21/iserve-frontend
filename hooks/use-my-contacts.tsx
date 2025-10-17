@@ -5,6 +5,7 @@ export type MyContact = {
   id: string;
   name: string;
   image: string;
+  publicKey: string;
 };
 
 export const useMyContacts = () => {

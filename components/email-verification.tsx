@@ -9,7 +9,9 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Text } from "@/components/ui/text";
+import { usePrivateKeyStore } from "@/hooks/use-private-key";
 import { authClient } from "@/lib/auth-client";
+import { generateKeyPair } from "@/lib/crypto";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { AlertCircleIcon } from "lucide-react-native";
@@ -49,9 +51,10 @@ export default function EmailVerification({ handlePrevStep }: Props) {
       otp: "",
     },
   });
+  const { setPrivateKey } = usePrivateKeyStore();
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
-    const { error } = await authClient.signIn.emailOtp({
+    const { data, error } = await authClient.signIn.emailOtp({
       email: email,
       otp: values.otp,
     });
@@ -60,6 +63,15 @@ export default function EmailVerification({ handlePrevStep }: Props) {
       setError("root", { message: error.message });
       return;
     }
+
+    const keyPair = generateKeyPair();
+
+    await Promise.all([
+      authClient.updateUser({
+        publicKey: keyPair.publicKey,
+      }),
+      setPrivateKey(keyPair.secretKey),
+    ]);
 
     router.replace("/");
   };

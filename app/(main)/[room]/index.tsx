@@ -5,14 +5,20 @@ import { useGradualAnimation } from "@/hooks/use-gradual-animation";
 import { useMarkRoomAsRead } from "@/hooks/use-mark-room-as-read";
 import { Message, useMessages } from "@/hooks/use-messages";
 import { MyRoomsKeys } from "@/hooks/use-my-rooms";
-import useChatSocket from "@/hooks/use-new-message";
-import { authClient } from "@/lib/auth-client";
-import { cn } from "@/lib/utils";
+import { usePrivateKeyStore } from "@/hooks/use-private-key";
+import {
+  RoomParticipants,
+  useRoomParticipants,
+} from "@/hooks/use-room-participants";
+import { useSendMessage } from "@/hooks/use-send-message";
+import { authClient, User } from "@/lib/auth-client";
+import { decryptEnvelope, encryptForRecipients } from "@/lib/crypto";
+import { cn, formatTime } from "@/lib/utils";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { useFocusEffect, useLocalSearchParams } from "expo-router";
 import { Send } from "lucide-react-native";
-import { memo, useCallback } from "react";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { FlatList, TouchableOpacity, View } from "react-native";
 import Animated, { useAnimatedStyle } from "react-native-reanimated";
@@ -21,12 +27,20 @@ import z from "zod";
 
 export default function HomeScreen() {
   const { room } = useLocalSearchParams<{ room: string }>();
-  const { data: messages, isLoading } = useMessages(room);
+  const {
+    data: encryptedMessages,
+    isLoading,
+    mutate: mutateMessages,
+  } = useMessages(room);
   const { data: session, isPending } = authClient.useSession();
   const { height } = useGradualAnimation();
   const { trigger } = useMarkRoomAsRead(room);
   const { mutate } = useSWRConfig();
   const headerHeight = useHeaderHeight();
+  const { data: roomParticipants, isLoading: isLoadingRoomParticipants } =
+    useRoomParticipants(room);
+  const { privateKey } = usePrivateKeyStore();
+  const [messages, setMessages] = useState<Message[]>([]);
 
   const fakeView = useAnimatedStyle(() => {
     return {
@@ -44,7 +58,18 @@ export default function HomeScreen() {
     }, [])
   );
 
-  if (isLoading || isPending) {
+  useEffect(() => {
+    if (
+      !!session &&
+      !!encryptedMessages &&
+      !!roomParticipants &&
+      !!privateKey
+    ) {
+      getDecryptedMessages();
+    }
+  }, [session, encryptedMessages, roomParticipants, privateKey]);
+
+  if (isLoading || isPending || isLoadingRoomParticipants) {
     return (
       <View
         className="flex-1 bg-white dark:bg-black px-4 py-6"
@@ -78,16 +103,33 @@ export default function HomeScreen() {
     );
   }
 
-  if (!session || !messages) {
+  if (!session || !encryptedMessages || !roomParticipants || !privateKey) {
     return null;
   }
+
+  const getDecryptedMessages = async () => {
+    const decryptedMessages = await Promise.all(
+      encryptedMessages.map(async (message) => {
+        const decrypted = await decryptEnvelope(JSON.parse(message.content), {
+          publicKey: session.user.publicKey,
+          secretKey: privateKey,
+        });
+
+        return {
+          ...message,
+          content: decrypted.plaintext,
+        };
+      })
+    );
+    setMessages(decryptedMessages);
+  };
 
   return (
     <View className="flex-1" style={{ paddingTop: headerHeight }}>
       <FlatList
         data={messages}
         keyExtractor={(item) => item.id}
-        renderItem={({ item }) => <TextItem item={item} />}
+        renderItem={({ item }) => <TextItem item={item} user={session.user} />}
         showsVerticalScrollIndicator={false}
         inverted
         initialNumToRender={10}
@@ -98,7 +140,12 @@ export default function HomeScreen() {
           justifyContent: "flex-end",
         }}
       />
-      <SendMessageInput roomId={room} />
+      <SendMessageInput
+        roomId={room}
+        mutateMessages={mutateMessages}
+        roomParticipants={roomParticipants}
+        privateKey={privateKey}
+      />
       <Animated.View style={fakeView} />
     </View>
   );
@@ -111,108 +158,141 @@ export const formSchema = z.object({
 
 type SendMessageInputProps = {
   roomId: string;
+  mutateMessages: (
+    data?:
+      | Message[]
+      | Promise<Message[] | undefined>
+      | ((
+          currentData?: Message[]
+        ) => Message[] | Promise<Message[] | undefined>),
+    opts?: any
+  ) => Promise<Message[] | undefined>;
+  roomParticipants: RoomParticipants;
+  privateKey: string;
 };
 
-const SendMessageInput = memo(({ roomId }: SendMessageInputProps) => {
-  const { control, handleSubmit, reset, watch } = useForm<
-    z.infer<typeof formSchema>
-  >({
-    resolver: zodResolver(formSchema),
-    defaultValues: {
-      content: "",
-      roomId: roomId,
-    },
-  });
-  const { mutate } = useSWRConfig();
-  const { socket } = useChatSocket();
-  const { data: session } = authClient.useSession();
-
-  if (!session) {
-    return null;
-  }
-
-  const onSubmit = async (values: z.infer<typeof formSchema>) => {
-    const trimmed = values.content.trim();
-    if (!trimmed) return;
-
-    socket?.emit("sendMessage", { ...values, content: trimmed });
-    const optimisticMessage: Message = {
-      content: trimmed,
-      id: `optimistic-${Date.now()}`,
-      sender: {
-        id: session.user.id,
-        name: session.user.name,
+const SendMessageInput = memo(
+  ({
+    roomId,
+    mutateMessages,
+    roomParticipants,
+    privateKey,
+  }: SendMessageInputProps) => {
+    const { control, handleSubmit, reset, watch } = useForm<
+      z.infer<typeof formSchema>
+    >({
+      resolver: zodResolver(formSchema),
+      defaultValues: {
+        content: "",
+        roomId: roomId,
       },
-      createdAt: new Date(),
+    });
+    const { data: session } = authClient.useSession();
+    const { trigger } = useSendMessage();
+
+    if (!session) {
+      return null;
+    }
+
+    const onSubmit = async (values: z.infer<typeof formSchema>) => {
+      const trimmed = values.content.trim();
+      if (!trimmed) return;
+
+      const publicKeys =
+        roomParticipants.participants.map((p) => p.publicKey) || [];
+
+      const armoredContent = await encryptForRecipients(
+        trimmed,
+        {
+          publicKey: session.user.publicKey,
+          secretKey: privateKey,
+        },
+        publicKeys
+      );
+
+      const optimisticMessage: Message = {
+        content: JSON.stringify(armoredContent),
+        id: `optimistic-${Date.now()}`,
+        sender: {
+          id: session.user.id,
+          name: session.user.name,
+          publicKey: session.user.publicKey,
+        },
+        createdAt: new Date(),
+      };
+
+      mutateMessages(
+        (current: Message[] = []) => [optimisticMessage, ...current],
+        false
+      );
+
+      trigger(
+        { content: JSON.stringify(armoredContent), roomId },
+        {
+          onError: () => {
+            mutateMessages(
+              (current = []) =>
+                current.filter((m) => m.id !== optimisticMessage.id),
+              false
+            );
+          },
+          onSuccess: () => {
+            mutateMessages();
+          },
+        }
+      );
+
+      reset({ content: "", roomId });
     };
-    mutate(
-      `/chat/room/${roomId}/messages`,
-      (currentMessages: Message[] = []) => [
-        optimisticMessage,
-        ...currentMessages,
-      ],
-      { revalidate: true }
+
+    const contentValue = watch("content");
+    const canSend = useMemo(
+      () => (contentValue?.trim().length ?? 0) > 0,
+      [contentValue]
     );
-    reset({ content: "", roomId });
-  };
 
-  const contentValue = watch("content");
-  const canSend = (contentValue?.trim().length ?? 0) > 0;
-
-  return (
-    <View className="px-3 pb-4 pt-2">
-      <View className="flex-row items-end">
-        <Controller
-          control={control}
-          name="content"
-          render={({ field: { onChange, onBlur, value } }) => (
-            <Textarea
-              onBlur={onBlur}
-              onChangeText={onChange}
-              value={value}
-              className="flex-1 rounded-2xl px-4 bg-gray-100 dark:bg-gray-900 pt-2"
-              placeholder="Type a message…"
-            />
-          )}
-        />
-        <TouchableOpacity
-          className={cn(
-            "ml-2 rounded-full p-3 shadow-sm",
-            canSend ? "bg-blue-500 active:opacity-90" : "bg-blue-500/50"
-          )}
-          activeOpacity={0.8}
-          onPress={handleSubmit(onSubmit)}
-          disabled={!canSend}
-          accessibilityRole="button"
-          accessibilityLabel="Send message"
-        >
-          <Send size={20} color="#fff" />
-        </TouchableOpacity>
+    return (
+      <View className="px-3 pb-4 pt-2">
+        <View className="flex-row items-end">
+          <Controller
+            control={control}
+            name="content"
+            render={({ field: { onChange, onBlur, value } }) => (
+              <Textarea
+                onBlur={onBlur}
+                onChangeText={onChange}
+                value={value}
+                className="flex-1 rounded-2xl px-4 bg-gray-100 dark:bg-gray-900 pt-2 placeholder:text-primary-foreground"
+                placeholder="Type a message…"
+              />
+            )}
+          />
+          <TouchableOpacity
+            className={cn(
+              "ml-2 rounded-full p-3 shadow-sm",
+              canSend ? "bg-blue-500 active:opacity-90" : "bg-blue-500/50"
+            )}
+            activeOpacity={0.8}
+            onPress={handleSubmit(onSubmit)}
+            disabled={!canSend}
+            accessibilityRole="button"
+            accessibilityLabel="Send message"
+          >
+            <Send size={20} color="#fff" />
+          </TouchableOpacity>
+        </View>
       </View>
-    </View>
-  );
-});
-
-// Helpers: format time and initials for better UI polish
-function formatTime(input?: string | number | Date) {
-  if (!input) return "";
-  const d = new Date(input);
-  const now = new Date();
-  const isToday = d.toDateString() === now.toDateString();
-  if (isToday) {
-    return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    );
   }
-  const diff = now.getTime() - d.getTime();
-  const oneDay = 24 * 60 * 60 * 1000;
-  if (diff < 7 * oneDay) {
-    return d.toLocaleDateString([], { weekday: "short" });
-  }
-  return d.toLocaleDateString([], { month: "short", day: "numeric" });
-}
+);
 
-const TextItem = memo(({ item }: { item: Message }) => {
-  const { data: session } = authClient.useSession();
-  const isMe = item.sender.id === session?.user.id;
+type TextItemProps = {
+  item: Message;
+  user: User;
+};
+
+const TextItem = memo(({ item, user }: TextItemProps) => {
+  const isMe = item.sender.id === user.id;
 
   return (
     <View className={cn("mb-3 px-2", isMe ? "items-end" : "items-start")}>

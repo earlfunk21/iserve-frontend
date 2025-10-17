@@ -16,9 +16,16 @@ export default function NewMessage() {
     require("@/assets/images/person-placeholder.png"),
   ]);
 
-  const onPress = useCallback((id: string, name: string) => {
-    router.replace(`/new-message?name=${name}&id=${id}`);
-  }, []);
+  const onPress = useCallback(
+    (id: string, name: string, publicKey: string) => {
+      // Use params object so expo-router URL-encodes values like '+' '/' '=' in base64 keys
+      router.replace({
+        pathname: "/new-message",
+        params: { name, id, publicKey },
+      });
+    },
+    [router]
+  );
 
   return (
     <View className="flex-1 relative">
@@ -78,14 +85,14 @@ export default function NewMessage() {
 type Props = {
   item: MyContact | MyReferral;
   assets: Asset[] | undefined;
-  onPress: (id: string, name: string) => void;
+  onPress: (id: string, name: string, publicKey: string) => void;
 };
 
 function ContactItem({ item, onPress, assets }: Props) {
   return (
     <Pressable
       onPress={() => {
-        onPress(item.id, item.name);
+        onPress(item.id, item.name, item.publicKey);
       }}
       className="px-4 py-1 flex-row items-center gap-x-3 flex-1"
     >
