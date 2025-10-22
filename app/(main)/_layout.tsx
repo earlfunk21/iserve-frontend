@@ -1,6 +1,7 @@
-import NewMessage from "@/components/new-message";
+import ChatSocketProvider from "@/components/chat-provider";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
+import useNewMessage from "@/hooks/use-new-message";
 import { authClient } from "@/lib/auth-client";
 import { THEME } from "@/lib/theme";
 import { Redirect, Stack, useRouter } from "expo-router";
@@ -26,8 +27,7 @@ export default function MainLayout() {
   }
 
   return (
-    <>
-      <NewMessage session={session.session} />
+    <ChatSocketProvider>
       <Stack
         screenOptions={{
           headerShadowVisible: false,
@@ -72,7 +72,7 @@ export default function MainLayout() {
           }}
         />
       </Stack>
-    </>
+    </ChatSocketProvider>
   );
 }
 
@@ -106,3 +106,4 @@ function HeaderRight() {
     </View>
   );
 }
+

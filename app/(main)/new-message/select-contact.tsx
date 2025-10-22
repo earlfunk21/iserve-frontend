@@ -1,16 +1,31 @@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Text } from "@/components/ui/text";
-import { MyContact, useMyContacts } from "@/hooks/use-my-contacts";
-import { MyReferral, useMyReferrals } from "@/hooks/use-my-referrals";
+import api from "@/lib/api";
 import { getInitials } from "@/lib/utils";
+import { MyContact, MyReferral } from "@/types/core.types";
+import { useQuery } from "@tanstack/react-query";
 import { Asset, useAssets } from "expo-asset";
 import { Stack, useRouter } from "expo-router";
 import { useCallback } from "react";
 import { FlatList, Pressable, View } from "react-native";
 
 export default function NewMessage() {
-  const { data: myReferrals } = useMyReferrals();
-  const { data: myContacts } = useMyContacts();
+  const { data: myReferrals } = useQuery({
+    queryKey: ["myReferrals"],
+    queryFn: async () => {
+      const { data } = await api.get(`/user/my-referrals`);
+
+      return data;
+    },
+  });
+  const { data: myContacts } = useQuery({
+    queryKey: ["myContacts"],
+    queryFn: async () => {
+      const { data } = await api.get(`/user/my-contacts`);
+
+      return data;
+    },
+  });
   const router = useRouter();
   const [assets] = useAssets([
     require("@/assets/images/person-placeholder.png"),

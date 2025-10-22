@@ -2,47 +2,80 @@ import { MessageItem } from "@/components/message-item";
 import { SendPrivateMessageInput } from "@/components/send-private-message-input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useGradualAnimation } from "@/hooks/use-gradual-animation";
-import { useMarkRoomAsRead } from "@/hooks/use-mark-room-as-read";
-import { Message, useMessages } from "@/hooks/use-messages";
-import { MyRoomsKeys } from "@/hooks/use-my-rooms";
 import { usePrivateKeyStore } from "@/hooks/use-private-key";
-import { useRoomParticipants } from "@/hooks/use-room-participants";
+import api from "@/lib/api";
 import { authClient } from "@/lib/auth-client";
 import { decryptEnvelope } from "@/lib/crypto";
 import { cn } from "@/lib/utils";
+import { Message } from "@/types/core.types";
+import { Paginate } from "@/types/paginate.type";
 import { useHeaderHeight } from "@react-navigation/elements";
-import { useFocusEffect, useLocalSearchParams } from "expo-router";
-import { useCallback, useState } from "react";
-import type { ViewToken } from "react-native";
+import {
+  useInfiniteQuery,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
+import { useLocalSearchParams } from "expo-router";
+import { useCallback, useEffect, useMemo } from "react";
 import { FlatList, View } from "react-native";
 import Animated, { useAnimatedStyle } from "react-native-reanimated";
-import { useSWRConfig } from "swr";
 
 export default function HomeScreen() {
   const { room } = useLocalSearchParams<{ room: string }>();
-  const { data: encryptedMessages } = useMessages(room);
   const { data: session } = authClient.useSession();
   const { height } = useGradualAnimation();
-  const { trigger } = useMarkRoomAsRead(room);
-  const { mutate } = useSWRConfig();
   const headerHeight = useHeaderHeight();
-  const { data: roomParticipants } = useRoomParticipants(room);
+  const queryClient = useQueryClient();
+  const { data: roomUsers } = useQuery({
+    queryKey: ["roomUsers", room],
+    queryFn: async () => {
+      const { data } = await api.get(`/chat/room/${room}/users`);
+
+      return data;
+    },
+  });
   const { privateKey } = usePrivateKeyStore();
-  const [decryptedMap, setDecryptedMap] = useState<Record<string, string>>({});
+  const { data, hasNextPage, fetchNextPage, isFetching } = useInfiniteQuery({
+    queryKey: ["room", room],
+    queryFn: async ({ pageParam }): Promise<Paginate<Message>> => {
+      const { data } = await api.get<Paginate<Message>>(
+        `/chat/room/${room}/messages?page=${pageParam}`
+      );
+
+      const encryptedMessages = data[0];
+
+      if (!session?.user || !privateKey) {
+        throw Error("Not authenticated or no private key");
+      }
+
+      const decryptedMessages = await Promise.all(
+        encryptedMessages.map(async (msg) => {
+          try {
+            const decrypted = await decryptEnvelope(msg.content, {
+              publicKey: session.user.publicKey,
+              secretKey: privateKey,
+            });
+            return { ...msg, content: decrypted };
+          } catch (error) {
+            return { ...msg, content: "[Unable to decrypt message]" };
+          }
+        })
+      );
+
+      data[0] = decryptedMessages;
+      return data;
+    },
+    initialPageParam: 1,
+    getNextPageParam: (lastPage) => lastPage[1].nextPage,
+  });
 
   const keyExtractor = useCallback((item: Message) => item.id, []);
   const renderItem = useCallback(
     ({ item }: { item: Message }) => {
       if (!session?.user) return null;
-      return (
-        <MessageItem
-          item={item}
-          user={session.user}
-          decryptedContent={decryptedMap[item.id]}
-        />
-      );
+      return <MessageItem item={item} user={session.user} />;
     },
-    [session?.user, decryptedMap]
+    [session]
   );
 
   const fakeView = useAnimatedStyle(() => {
@@ -51,60 +84,27 @@ export default function HomeScreen() {
     };
   }, []);
 
-  useFocusEffect(
-    useCallback(() => {
-      trigger();
-
-      return () => {
-        mutate(MyRoomsKeys);
-      };
-    }, [])
+  const messages = useMemo(
+    () => data?.pages.flatMap((page) => page[0] || []),
+    [data]
   );
 
-  const decryptVisible = useCallback(
-    async (items: Message[]) => {
-      if (!session?.user || !privateKey) return;
+  const onEndReached = useCallback(() => {
+    // Prevent requesting when already fetching or when no next page
+    if (isFetching || !hasNextPage) return;
+    fetchNextPage();
+  }, [hasNextPage, fetchNextPage, isFetching]);
 
-      const toDecrypt = items.filter((m) => !decryptedMap[m.id]);
-      if (toDecrypt.length === 0) return;
-
-      try {
-        const results = await Promise.all(
-          toDecrypt.map(async (msg) => {
-            const decrypted = await decryptEnvelope(msg.content, {
-              publicKey: session.user!.publicKey,
-              secretKey: privateKey,
-            });
-            return { id: msg.id, decrypted } as const;
-          })
-        );
-
-        setDecryptedMap((prev) => {
-          const next = { ...prev };
-          for (const r of results) next[r.id] = r.decrypted;
-          return next;
-        });
-      } catch (e) {
-        // Swallow individual decrypt errors; leave message as pending
-      }
-    },
-    [session?.user, privateKey, decryptedMap]
-  );
-
-  const onViewableItemsChanged = useCallback(
-    ({ viewableItems }: { viewableItems: Array<ViewToken> }) => {
-      const items: Message[] = viewableItems
-        .map((v) => v.item as Message)
-        .filter(Boolean);
-      if (items.length) decryptVisible(items);
-    },
-    [decryptVisible]
-  );
+  useEffect(() => {
+    queryClient.invalidateQueries({
+      queryKey: ["myRooms"],
+    });
+  }, [data]);
 
   return (
-    <View className="flex-1" style={{ paddingTop: headerHeight }}>
+    <View className="flex-1 mt-1" style={{ paddingTop: headerHeight }}>
       <FlatList
-        data={encryptedMessages || []}
+        data={messages}
         keyExtractor={keyExtractor}
         renderItem={renderItem}
         showsVerticalScrollIndicator={false}
@@ -112,11 +112,8 @@ export default function HomeScreen() {
         initialNumToRender={12}
         maxToRenderPerBatch={12}
         windowSize={15}
-        maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
-        removeClippedSubviews
+        onEndReached={onEndReached}
         keyboardShouldPersistTaps="handled"
-        onViewableItemsChanged={onViewableItemsChanged}
-        viewabilityConfig={{ itemVisiblePercentThreshold: 25 }}
         ListEmptyComponent={
           <View className="bg-white dark:bg-black px-4 py-6">
             {Array.from({ length: 10 }).map((_, i) => {
@@ -150,15 +147,12 @@ export default function HomeScreen() {
           justifyContent: "flex-end",
         }}
       />
-      {!!session && !!privateKey && !!roomParticipants && (
+      {!!session && !!privateKey && !!roomUsers && (
         <SendPrivateMessageInput
           roomId={room}
-          roomParticipants={roomParticipants}
+          roomUsers={roomUsers}
           privateKey={privateKey}
           user={session.user}
-          onOptimisticMessage={(id, content) =>
-            setDecryptedMap((prev) => ({ ...prev, [id]: content }))
-          }
         />
       )}
       <Animated.View pointerEvents="none" style={fakeView} />

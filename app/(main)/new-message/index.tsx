@@ -1,14 +1,15 @@
 import { Text } from "@/components/ui/text";
 import { Textarea } from "@/components/ui/textarea";
 import { useGradualAnimation } from "@/hooks/use-gradual-animation";
-import { MyRooms } from "@/hooks/use-my-rooms";
 import { usePrivateKeyStore } from "@/hooks/use-private-key";
-import { useSendPrivateMessage } from "@/hooks/use-send-private-message";
+import api from "@/lib/api";
 import { authClient } from "@/lib/auth-client";
 import { encryptForRecipients } from "@/lib/crypto";
 import { cn } from "@/lib/utils";
+import { MyRooms } from "@/types/core.types";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useHeaderHeight } from "@react-navigation/elements";
+import { useMutation } from "@tanstack/react-query";
 import { Redirect, Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { Send } from "lucide-react-native";
 import { useMemo } from "react";
@@ -72,7 +73,37 @@ const SendMessageInput = ({ userId, publicKey }: SendMessageInputProps) => {
       userId: userId,
     },
   });
-  const { trigger } = useSendPrivateMessage();
+  const mutation = useMutation({
+    mutationFn: async (values: {
+      content: string;
+      userId: string;
+    }): Promise<MyRooms> => {
+      if (!session || !privateKey) {
+        throw new Error("Not authenticated or no private key");
+      }
+
+      const publicKeys = [session.user.publicKey, publicKey];
+
+      const armoredContent = await encryptForRecipients(
+        values.content,
+        {
+          publicKey: session.user.publicKey,
+          secretKey: privateKey,
+        },
+        publicKeys
+      );
+      const { data } = await api.post<MyRooms>(`/chat/send-private-message`, {
+        content: armoredContent,
+        receiver: values.userId,
+      });
+
+      return data;
+    },
+    onSuccess: async (data: MyRooms) => {
+      const { id, participants } = data;
+      router.replace(`/${id}?name=${participants?.[0]?.name ?? "Unknown"}`);
+    },
+  });
   const router = useRouter();
   const { privateKey } = usePrivateKeyStore();
   const { data: session } = authClient.useSession();
@@ -85,29 +116,10 @@ const SendMessageInput = ({ userId, publicKey }: SendMessageInputProps) => {
     const trimmed = values.content.trim();
     if (!trimmed) return;
 
-    const publicKeys = [session.user.publicKey, publicKey];
-
-    const armoredContent = await encryptForRecipients(
-      trimmed,
-      {
-        publicKey: session.user.publicKey,
-        secretKey: privateKey,
-      },
-      publicKeys
-    );
-
-    trigger(
-      {
-        content: JSON.stringify(armoredContent),
-        receiver: userId,
-      },
-      {
-        onSuccess: async ({ data }: { data: MyRooms }) => {
-          const { id, participants } = data;
-          router.replace(`/${id}?name=${participants?.[0]?.name ?? "Unknown"}`);
-        },
-      }
-    );
+    await mutation.mutateAsync({
+      content: trimmed,
+      userId: values.userId,
+    });
   };
 
   const contentValue = watch("content");

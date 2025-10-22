@@ -1,8 +1,9 @@
 import QRScanner from "@/components/scan-qrcode-referrer";
 import { Button } from "@/components/ui/button";
 import { Text } from "@/components/ui/text";
-import { MyContact } from "@/hooks/use-my-contacts";
-import { useNewContact } from "@/hooks/use-new-contact";
+import api from "@/lib/api";
+import { MyContact } from "@/types/core.types";
+import { useMutation } from "@tanstack/react-query";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { View } from "react-native";
@@ -11,7 +12,15 @@ type Mode = "choice" | "scan";
 
 export default function NewContactScreen() {
   const { referrerId } = useLocalSearchParams<{ referrerId?: string }>();
-  const { trigger } = useNewContact();
+  const mutation = useMutation({
+    mutationFn: async ({ contactId }: { contactId: string }) => {
+      const { data } = await api.patch(`/user/add-contact/${contactId}`);
+      return data;
+    },
+    onSuccess: (data: MyContact) => {
+      router.replace(`/new-message?name=${data.name}&id=${data.id}`);
+    },
+  });
   const router = useRouter();
 
   // Moved above early returns to keep hooks order stable
@@ -19,14 +28,7 @@ export default function NewContactScreen() {
 
   useEffect(() => {
     if (!!referrerId) {
-      trigger(
-        { contactId: referrerId },
-        {
-          onSuccess: ({ data }: { data: MyContact }) => {
-            router.replace(`/new-message?name=${data.name}&id=${data.id}`);
-          },
-        }
-      );
+      mutation.mutate({ contactId: referrerId });
     }
   }, [referrerId]);
 

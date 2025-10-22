@@ -8,7 +8,7 @@ import React from "react";
 
 export default function RoomLayout() {
   const { colorScheme } = useColorScheme();
-  const { name } = useLocalSearchParams<{ room: string; name: string }>();
+  const { name } = useLocalSearchParams<{ name: string }>();
 
   return (
     <Stack>

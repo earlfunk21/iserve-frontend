@@ -2,37 +2,99 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Icon } from "@/components/ui/icon";
 import { Text } from "@/components/ui/text";
-import { MyRooms, useMyRooms } from "@/hooks/use-my-rooms";
-import { authClient, User } from "@/lib/auth-client";
+import { usePrivateKeyStore } from "@/hooks/use-private-key";
+import api from "@/lib/api";
+import { authClient } from "@/lib/auth-client";
+import { decryptEnvelope } from "@/lib/crypto";
 import { formatTime, getInitials } from "@/lib/utils";
+import { MyRooms } from "@/types/core.types";
+import { Paginate } from "@/types/paginate.type";
 import { useHeaderHeight } from "@react-navigation/elements";
+import { useInfiniteQuery } from "@tanstack/react-query";
 import { Asset, useAssets } from "expo-asset";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { SearchIcon } from "lucide-react-native";
-import { memo } from "react";
-import { ActivityIndicator, FlatList, Pressable, View } from "react-native";
+import { memo, useCallback, useMemo } from "react";
+import { FlatList, Pressable, View } from "react-native";
 
 export default function HomeScreen() {
   const [assets] = useAssets([
     require("@/assets/images/person-placeholder.png"),
   ]);
-  const { data, isLoading, mutate } = useMyRooms();
-  const { data: session, isPending } = authClient.useSession();
+
+  const { data: session } = authClient.useSession();
+  const { privateKey } = usePrivateKeyStore();
   const router = useRouter();
   const { status } = useLocalSearchParams<{ status?: string }>();
   const headerHeight = useHeaderHeight();
+  const {
+    data,
+    isFetching,
+    isFetchingNextPage,
+    fetchNextPage,
+    hasNextPage,
+    refetch,
+  } = useInfiniteQuery({
+    queryKey: ["myRooms"],
+    queryFn: async ({ pageParam }): Promise<Paginate<MyRooms>> => {
+      const { data } = await api.get<Paginate<MyRooms>>(
+        `/chat/my/rooms?page=${pageParam}${status ? "&status=" + status : ""}`
+      );
+
+      const myRooms = data[0];
+
+      if (!session?.user || !privateKey) {
+        throw Error("Not authenticated or no private key");
+      }
+
+      const decryptedMyRooms = await Promise.all(
+        myRooms.map(async (myRoom) => {
+          try {
+            const decrypted = await decryptEnvelope(
+              myRoom.room.messages[0].content,
+              {
+                publicKey: session.user.publicKey,
+                secretKey: privateKey,
+              }
+            );
+            return {
+              ...myRoom,
+              room: { ...myRoom.room, messages: [{ content: decrypted }] },
+            };
+          } catch (error) {
+            return {
+              ...myRoom,
+              room: {
+                ...myRoom.room,
+                messages: [{ content: "[Unable to decrypt message]" }],
+              },
+            };
+          }
+        })
+      );
+
+      data[0] = decryptedMyRooms;
+
+      return data;
+    },
+    initialPageParam: 1,
+    getNextPageParam: (lastPage) => lastPage[1].nextPage,
+  });
 
   const gotoRoom = (roomId: string, name?: string) => {
     router.navigate(`/${roomId}?name=${name ?? "Unknown"}`);
   };
 
-  if (isLoading || isPending) {
-    return (
-      <View className="flex-1 items-center justify-center">
-        <ActivityIndicator />
-      </View>
-    );
-  }
+  const handleEndReached = useCallback(() => {
+    if (hasNextPage && !isFetchingNextPage) {
+      fetchNextPage();
+    }
+  }, []);
+
+  const rooms = useMemo(
+    () => data?.pages.flatMap((page) => page[0] || []),
+    [data]
+  );
 
   return (
     <View
@@ -100,18 +162,15 @@ export default function HomeScreen() {
       </View>
 
       <FlatList
-        data={data}
-        keyExtractor={(item) => item.id}
+        data={rooms}
+        keyExtractor={(item) => item.room.id}
         renderItem={({ item }) => (
-          <RoomItem
-            item={item}
-            asset={assets?.[0]}
-            user={session?.user ?? null}
-            gotoRoom={gotoRoom}
-          />
+          <RoomItem item={item} asset={assets?.[0]} gotoRoom={gotoRoom} />
         )}
-        refreshing={!!isLoading}
-        onRefresh={() => mutate()}
+        refreshing={isFetching}
+        onRefresh={refetch}
+        onEndReached={handleEndReached}
+        onEndReachedThreshold={0.5}
         ListEmptyComponent={
           <View className="items-center justify-center py-24 gap-y-3">
             <Icon as={SearchIcon} size={28} className="text-muted-foreground" />
@@ -126,13 +185,11 @@ export default function HomeScreen() {
 type RoomItemProps = {
   item: MyRooms;
   asset: Asset | undefined;
-  user: User | null;
   gotoRoom: (roomId: string, name: string) => void;
 };
 
-const RoomItem = memo(({ item, asset, user, gotoRoom }: RoomItemProps) => {
-  const lastMessage = item.messages?.[0];
-  const name = item.participants?.[0]?.name ?? "Unknown";
+const RoomItem = memo(({ item, asset, gotoRoom }: RoomItemProps) => {
+  const name = item.room.participants?.[0]?.user.name ?? "Unknown";
   const source = asset ? { uri: asset?.uri } : undefined;
 
   return (
@@ -140,7 +197,7 @@ const RoomItem = memo(({ item, asset, user, gotoRoom }: RoomItemProps) => {
       className="flex-row justify-between px-4 py-1"
       android_ripple={{ color: "rgba(0,0,0,0.08)" }}
       onPress={() => {
-        gotoRoom(item.id, name);
+        gotoRoom(item.room.id, name);
       }}
     >
       <View className="flex-row items-center gap-x-3 flex-1">
@@ -160,24 +217,25 @@ const RoomItem = memo(({ item, asset, user, gotoRoom }: RoomItemProps) => {
             numberOfLines={1}
             className="mt-0.5 text-sm text-muted-foreground"
           >
-            {lastMessage.senderId === user?.id ? "You: " : ""}
-            {lastMessage.content ?? "No messages yet"}
+            {item.unread > 0
+              ? "New Message"
+              : (item.room.messages[0]?.content ?? "No messages yet")}
           </Text>
         </View>
       </View>
 
       <View className="justify-evenly">
-        {item._count.messages > 0 && (
+        {item.unread > 0 && (
           <Badge
             className="ml-3 h-5 min-w-5 rounded-full px-1.5 self-end"
             variant="destructive"
           >
-            <Text className="text-[10px]">{item._count.messages}</Text>
+            <Text className="text-[10px]">{item.unread}</Text>
           </Badge>
         )}
 
         <Text className="ml-2 shrink-0 text-xs text-muted-foreground">
-          {formatTime(lastMessage.createdAt as any)}
+          {formatTime(item.room.updatedAt)}
         </Text>
       </View>
     </Pressable>

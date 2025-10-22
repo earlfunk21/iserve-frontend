@@ -1,11 +1,12 @@
 import { Textarea } from "@/components/ui/textarea";
-import { Message, useMessages } from "@/hooks/use-messages";
-import { RoomParticipants } from "@/hooks/use-room-participants";
-import { useSendMessage } from "@/hooks/use-send-message";
+import api from "@/lib/api";
 import { User } from "@/lib/auth-client";
 import { encryptForRecipients } from "@/lib/crypto";
 import { cn } from "@/lib/utils";
+import { Message, RoomUser } from "@/types/core.types";
+import { Paginate } from "@/types/paginate.type";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { InfiniteData, useMutation } from "@tanstack/react-query";
 import { Send } from "lucide-react-native";
 import { memo, useMemo } from "react";
 import { Controller, useForm } from "react-hook-form";
@@ -19,20 +20,13 @@ export const formSchema = z.object({
 
 type Props = {
   roomId: string;
-  roomParticipants: RoomParticipants;
+  roomUsers: RoomUser[];
   privateKey: string;
   user: User;
-  onOptimisticMessage: (id: string, content: string) => void;
 };
 
 export const SendPrivateMessageInput = memo(
-  ({
-    roomId,
-    roomParticipants,
-    privateKey,
-    user,
-    onOptimisticMessage,
-  }: Props) => {
+  ({ roomId, roomUsers, privateKey, user }: Props) => {
     const { control, handleSubmit, reset, watch } = useForm<
       z.infer<typeof formSchema>
     >({
@@ -42,65 +36,84 @@ export const SendPrivateMessageInput = memo(
         roomId: roomId,
       },
     });
-    const { trigger } = useSendMessage();
-    const { mutate: mutateMessages } = useMessages(roomId);
+    const mutation = useMutation({
+      mutationFn: async (values: { content: string; roomId: string }) => {
+        const publicKeys = roomUsers.map(
+          (p) => p.publicKey
+        );
+        const armoredContent = await encryptForRecipients(
+          values.content,
+          {
+            publicKey: user.publicKey,
+            secretKey: privateKey,
+          },
+          publicKeys
+        );
+
+        await api.post(`/chat/send-message`, {
+          content: armoredContent,
+          roomId: values.roomId,
+        });
+      },
+      onMutate: async (data, context) => {
+        await context.client.cancelQueries({ queryKey: ["room", roomId] });
+        const previousData:
+          | InfiniteData<Paginate<Message>, unknown>
+          | undefined = context.client.getQueryData(["room", roomId]);
+
+        const optimisticMessage: Message = {
+          content: data.content,
+          id: `optimistic-${Date.now()}`,
+          sender: {
+            id: user.id,
+            name: user.name,
+            publicKey: user.publicKey,
+          },
+          createdAt: new Date(),
+        };
+
+        if (previousData) {
+          context.client.setQueryData(["room", roomId], {
+            ...previousData,
+            pages: [
+              [
+                [optimisticMessage, ...previousData.pages[0][0]],
+                previousData.pages[0][1],
+                previousData.pages[1],
+              ],
+            ],
+          });
+        }
+
+        return {
+          previousData,
+        };
+      },
+      onError: (err, newData, onMutateResult, context) => {
+        context.client.setQueryData(
+          ["room", roomId],
+          onMutateResult?.previousData
+        );
+      },
+      onSettled: (data, error, variables, onMutateResult, context) => {
+        context.client.invalidateQueries({ queryKey: ["myRooms"] });
+        context.client.invalidateQueries({ queryKey: ["room", roomId] });
+      },
+    });
 
     const onSubmit = async (values: z.infer<typeof formSchema>) => {
       const trimmed = values.content.trim();
       if (!trimmed) return;
 
-      const publicKeys = roomParticipants.participants.map((p) => p.publicKey);
-
-      const armoredContent = await encryptForRecipients(
-        trimmed,
-        {
-          publicKey: user.publicKey,
-          secretKey: privateKey,
-        },
-        publicKeys
-      );
-
-      const optimisticMessage: Message = {
-        content: JSON.stringify(armoredContent),
-        id: `optimistic-${Date.now()}`,
-        sender: {
-          id: user.id,
-          name: user.name,
-          publicKey: user.publicKey,
-        },
-        createdAt: new Date(),
-      };
-
-      mutateMessages(
-        (current: Message[] = []) => [optimisticMessage, ...current],
-        false
-      );
-
-      onOptimisticMessage(optimisticMessage.id, trimmed);
-
-      trigger(
-        { content: JSON.stringify(armoredContent), roomId },
-        {
-          onError: () => {
-            mutateMessages(
-              (current = []) =>
-                current.filter((m) => m.id !== optimisticMessage.id),
-              false
-            );
-          },
-          onSuccess: () => {
-            mutateMessages();
-          },
-        }
-      );
+      mutation.mutate({ content: trimmed, roomId: roomId });
 
       reset({ content: "", roomId });
     };
 
     const contentValue = watch("content");
     const canSend = useMemo(
-      () => (contentValue?.trim().length ?? 0) > 0 && !!roomParticipants,
-      [contentValue, roomParticipants]
+      () => (contentValue?.trim().length ?? 0) > 0 && !!roomUsers,
+      [contentValue, roomUsers]
     );
 
     return (
