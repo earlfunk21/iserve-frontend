@@ -1,7 +1,6 @@
 import ChatSocketProvider from "@/components/chat-provider";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
-import useNewMessage from "@/hooks/use-new-message";
 import { authClient } from "@/lib/auth-client";
 import { THEME } from "@/lib/theme";
 import { Redirect, Stack, useRouter } from "expo-router";

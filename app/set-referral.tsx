@@ -96,7 +96,15 @@ export default function SetReferralScreen() {
           <Button onPress={() => setMode("manual")}>
             <Text>Enter Code Manually</Text>
           </Button>
-          <Button onPress={() => refetch()}>
+          <Button
+            onPress={() =>
+              refetch({
+                query: {
+                  disableCookieCache: true
+                },
+              })
+            }
+          >
             <Text>Refresh</Text>
           </Button>
           <TouchableOpacity

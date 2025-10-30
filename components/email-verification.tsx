@@ -3,6 +3,7 @@ import {
   Card,
   CardContent,
   CardDescription,
+  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
@@ -14,12 +15,31 @@ import { authClient } from "@/lib/auth-client";
 import { generateKeyPair } from "@/lib/crypto";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { AlertCircleIcon } from "lucide-react-native";
+import {
+  AlertCircleIcon,
+  ArrowLeftIcon,
+  CheckCircle2Icon,
+  ClockIcon,
+  RefreshCwIcon,
+} from "lucide-react-native";
 import * as React from "react";
 import { Controller, useForm } from "react-hook-form";
-import { type TextStyle, View } from "react-native";
+import {
+  ActivityIndicator,
+  Pressable,
+  type TextStyle,
+  View,
+} from "react-native";
+import Animated, {
+  SlideInRight,
+  useAnimatedStyle,
+  useSharedValue,
+  withSequence,
+  withTiming,
+} from "react-native-reanimated";
 import z from "zod";
 import { Alert, AlertDescription, AlertTitle } from "./ui/alert";
+import { Icon } from "./ui/icon";
 
 const RESEND_CODE_INTERVAL_SECONDS = 30;
 
@@ -40,40 +60,71 @@ export default function EmailVerification({ handlePrevStep }: Props) {
     RESEND_CODE_INTERVAL_SECONDS
   );
   const [sending, setSending] = React.useState(false);
+  const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const successShake = useSharedValue(0);
   const {
     control,
     setError,
     handleSubmit,
-    formState: { errors },
+    formState: { errors, isValid },
+    watch,
   } = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       otp: "",
     },
+    mode: "onChange",
   });
   const { setPrivateKey } = usePrivateKeyStore();
+  const otpValue = watch("otp");
+
+  // Shake animation for success feedback
+  const successAnimStyle = useAnimatedStyle(() => {
+    return {
+      transform: [{ translateX: successShake.value }],
+    };
+  });
+
+  const playSuccessAnimation = () => {
+    successShake.value = withSequence(
+      withTiming(10, { duration: 100 }),
+      withTiming(-10, { duration: 100 }),
+      withTiming(5, { duration: 100 }),
+      withTiming(0, { duration: 100 })
+    );
+  };
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
-    const { data, error } = await authClient.signIn.emailOtp({
-      email: email,
-      otp: values.otp,
-    });
+    setIsSubmitting(true);
+    try {
+      const { data, error } = await authClient.signIn.emailOtp({
+        email: email,
+        otp: values.otp,
+      });
 
-    if (error) {
-      setError("root", { message: error.message });
-      return;
+      if (error) {
+        setError("root", { message: error.message });
+        return;
+      }
+
+      playSuccessAnimation();
+
+      // Small delay for success animation to be visible
+      setTimeout(async () => {
+        const keyPair = generateKeyPair();
+
+        await Promise.all([
+          authClient.updateUser({
+            publicKey: keyPair.publicKey,
+          }),
+          setPrivateKey(keyPair.secretKey),
+        ]);
+
+        router.replace("/");
+      }, 800);
+    } finally {
+      setIsSubmitting(false);
     }
-
-    const keyPair = generateKeyPair();
-
-    await Promise.all([
-      authClient.updateUser({
-        publicKey: keyPair.publicKey,
-      }),
-      setPrivateKey(keyPair.secretKey),
-    ]);
-
-    router.replace("/");
   };
 
   const handleSendVerificationOtp = async () => {
@@ -96,28 +147,40 @@ export default function EmailVerification({ handlePrevStep }: Props) {
   };
 
   return (
-    <View className="gap-6">
-      <Card className="rounded-3xl bg-card dark:bg-card border-border/0 sm:border-border pb-4 shadow-none sm:shadow-sm sm:shadow-black/5">
-        <CardHeader>
+    <Animated.View
+      className="gap-6 w-full"
+      entering={SlideInRight.duration(400)}
+    >
+      <Card className="rounded-3xl bg-card dark:bg-card border-border/0 sm:border-border pb-2 shadow-lg dark:shadow-primary/5">
+        <CardHeader className="pb-2">
+          <View className="flex-row items-center">
+            <Pressable
+              onPress={handlePrevStep}
+              className="h-10 w-10 items-center justify-center rounded-full mb-2"
+            >
+              <Icon as={ArrowLeftIcon} size={20} className="text-muted-foreground" />
+            </Pressable>
+          </View>
           <CardTitle className="text-center text-xl text-foreground sm:text-left">
             Verify your email
           </CardTitle>
           <CardDescription className="text-center text-muted-foreground sm:text-left">
-            Enter the verification code sent to {email}
+            We've sent a verification code to{" "}
+            <Text className="font-medium text-primary">{email}</Text>
           </CardDescription>
         </CardHeader>
-        <CardContent className="gap-6">
+        <CardContent className="gap-6 pt-4">
           <View className="gap-6">
             <View className="gap-2">
               {errors.root && (
                 <Alert variant="destructive" icon={AlertCircleIcon}>
-                  <AlertTitle>OTP Error</AlertTitle>
+                  <AlertTitle>Verification Error</AlertTitle>
                   <AlertDescription>{errors.root.message}</AlertDescription>
                 </Alert>
               )}
             </View>
-            <View className="gap-1.5">
-              <Label htmlFor="code" className="text-foreground">
+            <Animated.View className="gap-1.5" style={successAnimStyle}>
+              <Label htmlFor="code" className="text-foreground font-medium">
                 Verification code
               </Label>
               <Controller
@@ -136,48 +199,77 @@ export default function EmailVerification({ handlePrevStep }: Props) {
                     onChangeText={onChange}
                     value={value}
                     autoFocus
-                    className="h-12 rounded-xl bg-muted/50 dark:bg-muted/30 text-center tracking-[12px] font-medium"
+                    className="h-14 rounded-xl bg-muted/50 dark:bg-muted/30 text-center tracking-[12px] text-lg font-medium"
+                    maxLength={6}
                   />
                 )}
               />
-              <Button
-                variant="link"
-                size="sm"
-                disabled={countdown > 0 || sending}
-                onPress={async () => {
-                  await handleSendVerificationOtp();
-                  restartCountdown();
-                }}
-              >
-                <Text className="text-center text-xs text-muted-foreground">
-                  Didn&apos;t receive the code? Resend{" "}
-                  {countdown > 0 ? (
-                    <Text className="text-xs" style={TABULAR_NUMBERS_STYLE}>
-                      ({countdown})
-                    </Text>
-                  ) : null}
+              <View className="flex-row justify-between items-center mt-1">
+                <Text className="text-xs text-muted-foreground">
+                  Enter the 6-digit code
                 </Text>
-              </Button>
-            </View>
-            <View className="gap-3">
-              <Button
-                className="w-full rounded-full h-14 shadow-lg shadow-primary/20"
-                onPress={handleSubmit(onSubmit)}
-              >
-                <Text>Continue</Text>
-              </Button>
-              <Button
-                variant="link"
-                className="mx-auto"
-                onPress={handlePrevStep}
-              >
-                <Text className="text-muted-foreground">Cancel</Text>
-              </Button>
-            </View>
+                <Pressable
+                  disabled={countdown > 0 || sending}
+                  onPress={async () => {
+                    await handleSendVerificationOtp();
+                    restartCountdown();
+                  }}
+                  className="flex-row items-center"
+                >
+                  {sending ? (
+                    <ActivityIndicator size="small" className="mr-1" />
+                  ) : countdown > 0 ? (
+                    <ClockIcon
+                      size={14}
+                      className="text-muted-foreground mr-1"
+                    />
+                  ) : (
+                    <Icon as={RefreshCwIcon} size={14} className="text-primary mr-1" />
+                  )}
+                  <Text
+                    className={`text-xs ${countdown > 0 || sending ? "text-muted-foreground" : "text-primary font-medium"}`}
+                  >
+                    {countdown > 0
+                      ? `Resend in ${countdown}s`
+                      : sending
+                        ? "Sending..."
+                        : "Resend code"}
+                  </Text>
+                </Pressable>
+              </View>
+            </Animated.View>
           </View>
         </CardContent>
+        <CardFooter className="flex-col gap-3 pt-2">
+          <Button
+            className={`w-full rounded-full h-14 ${isValid ? "shadow-lg shadow-primary/20" : ""}`}
+            onPress={handleSubmit(onSubmit)}
+            disabled={!isValid || isSubmitting}
+          >
+            {isSubmitting ? (
+              <ActivityIndicator size="small" color="white" />
+            ) : (
+              <View className="flex-row items-center gap-2">
+                <Text className="font-semibold text-base text-white">
+                  Verify & Continue
+                </Text>
+                {otpValue?.length >= 5 && (
+                  <Icon as={CheckCircle2Icon} size={18} className="text-white" />
+                )}
+              </View>
+            )}
+          </Button>
+          <Button
+            variant="ghost"
+            className="mx-auto h-10"
+            onPress={handlePrevStep}
+            disabled={isSubmitting}
+          >
+            <Text className="text-muted-foreground">Cancel</Text>
+          </Button>
+        </CardFooter>
       </Card>
-    </View>
+    </Animated.View>
   );
 }
 

@@ -1,8 +1,8 @@
 // App.tsx (or root component)
-import useNewMessage from "@/hooks/use-new-message";
-import { useSocketStore } from "@/hooks/use-socket";
+import { useSocketEvent, useSocketStore } from "@/hooks/use-socket";
 import { authClient } from "@/lib/auth-client";
-import React, { ReactNode, useEffect } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { ReactNode, useEffect } from "react";
 
 type Props = {
   children: ReactNode | ReactNode[] | undefined;
@@ -13,7 +13,9 @@ const URL = `${process.env.EXPO_PUBLIC_WS_SERVER_URL}/chat`;
 export default function ChatSocketProvider({ children }: Props) {
   const connect = useSocketStore((s) => s.connect);
   const disconnect = useSocketStore((s) => s.disconnect);
+  const connected = useSocketStore((s) => s.connected);
   const { data: session } = authClient.useSession();
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     if (!session) {
@@ -29,16 +31,18 @@ export default function ChatSocketProvider({ children }: Props) {
     };
   }, [session]);
 
-  return (
-    <>
-      <NewMessageController />
-      {children}
-    </>
+  useSocketEvent<{ roomId: string }>(
+    "newMessage",
+    ({ roomId }) => {
+      queryClient.invalidateQueries({ queryKey: ["myRooms"] });
+      queryClient.invalidateQueries({ queryKey: ["room", roomId] });
+    },
+    connected
   );
-}
 
-function NewMessageController() {
-  useNewMessage();
+  if(!connected){
+    return null;
+  }
 
-  return null;
+  return children
 }

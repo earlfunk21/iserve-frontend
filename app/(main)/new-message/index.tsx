@@ -6,7 +6,6 @@ import api from "@/lib/api";
 import { authClient } from "@/lib/auth-client";
 import { encryptForRecipients } from "@/lib/crypto";
 import { cn } from "@/lib/utils";
-import { MyRooms } from "@/types/core.types";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { useMutation } from "@tanstack/react-query";
@@ -77,7 +76,10 @@ const SendMessageInput = ({ userId, publicKey }: SendMessageInputProps) => {
     mutationFn: async (values: {
       content: string;
       userId: string;
-    }): Promise<MyRooms> => {
+    }): Promise<{
+      id: string;
+      participants: [{ user: { name: string } }];
+    }> => {
       if (!session || !privateKey) {
         throw new Error("Not authenticated or no private key");
       }
@@ -92,16 +94,16 @@ const SendMessageInput = ({ userId, publicKey }: SendMessageInputProps) => {
         },
         publicKeys
       );
-      const { data } = await api.post<MyRooms>(`/chat/send-private-message`, {
+      const { data } = await api.post(`/chat/send-private-message`, {
         content: armoredContent,
         receiver: values.userId,
       });
 
       return data;
     },
-    onSuccess: async (data: MyRooms) => {
+    onSuccess: async (data) => {
       const { id, participants } = data;
-      router.replace(`/${id}?name=${participants?.[0]?.name ?? "Unknown"}`);
+      router.replace(`/${id}?name=${participants?.[0].user.name ?? "Unknown"}`);
     },
   });
   const router = useRouter();

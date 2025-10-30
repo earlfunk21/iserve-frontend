@@ -167,7 +167,7 @@ export default function HomeScreen() {
         renderItem={({ item }) => (
           <RoomItem item={item} asset={assets?.[0]} gotoRoom={gotoRoom} />
         )}
-        refreshing={isFetching}
+        refreshing={false}
         onRefresh={refetch}
         onEndReached={handleEndReached}
         onEndReachedThreshold={0.5}
