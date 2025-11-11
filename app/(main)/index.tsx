@@ -35,33 +35,32 @@ export default function HomeScreen() {
     hasNextPage,
     refetch,
   } = useInfiniteQuery({
-    queryKey: ["myRooms"],
+    queryKey: ["myRooms", status],
+    enabled: !!session?.user && !!privateKey, // wait until auth + key loaded before running
     queryFn: async ({ pageParam }): Promise<Paginate<MyRooms>> => {
+      const currentPage = pageParam ?? 1;
       const { data } = await api.get<Paginate<MyRooms>>(
-        `/chat/my/rooms?page=${pageParam}${status ? "&status=" + status : ""}`
+        `/chat/my/rooms?page=${currentPage}${status ? "&status=" + status : ""}`
       );
 
       const myRooms = data[0];
 
-      if (!session?.user || !privateKey) {
-        throw Error("Not authenticated or no private key");
-      }
-
       const decryptedMyRooms = await Promise.all(
         myRooms.map(async (myRoom) => {
+          const firstMessage = myRoom.room.messages[0];
+          if (!firstMessage) {
+            return myRoom; // nothing to decrypt
+          }
           try {
-            const decrypted = await decryptEnvelope(
-              myRoom.room.messages[0].content,
-              {
-                publicKey: session.user.publicKey,
-                secretKey: privateKey,
-              }
-            );
+            const decrypted = await decryptEnvelope(firstMessage.content, {
+              publicKey: session!.user!.publicKey,
+              secretKey: privateKey!,
+            });
             return {
               ...myRoom,
               room: { ...myRoom.room, messages: [{ content: decrypted }] },
             };
-          } catch (error) {
+          } catch {
             return {
               ...myRoom,
               room: {
@@ -74,11 +73,12 @@ export default function HomeScreen() {
       );
 
       data[0] = decryptedMyRooms;
-
       return data;
     },
     initialPageParam: 1,
     getNextPageParam: (lastPage) => lastPage[1].nextPage,
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
   });
 
   const gotoRoom = (roomId: string, name?: string) => {

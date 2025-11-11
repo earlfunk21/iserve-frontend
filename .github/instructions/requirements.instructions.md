@@ -6,10 +6,10 @@ Provide project context and coding guidelines that AI should follow when generat
 - Use Versions
   - React Native: 0.81.4
   - Expo: 54.0.13
-  - latetst version of ReactNativeReusable for reusable components
   - Nativewind v4 for styling
 
 # Styling
-- Use Tailwind CSS for styling.
+- Use Nativewind for styling.
 - Always Implement dark mode support.
-- Priority the ReactNativeReusable Colors.
+- Priority the pre defined tailwind colors.
+- Priority the pre defined components `@/components/ui/*` for UI elements.

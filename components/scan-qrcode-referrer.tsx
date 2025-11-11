@@ -23,8 +23,7 @@ export default function QRScannerView({ onClose }: { onClose?: () => void }) {
   // Animated scan line
   const FRAME_SIZE = 260;
 
-  const [mediaPermission, requestMediaPermission] =
-    ImagePicker.useMediaLibraryPermissions();
+  
 
   useEffect(() => {
     if (permission && !permission.granted) {
@@ -67,41 +66,6 @@ export default function QRScannerView({ onClose }: { onClose?: () => void }) {
     router.setParams({ referrerId: scanningResult.data });
   };
 
-  // Select an image from the library and try to read a QR code from it
-  const importFromGallery = async () => {
-    // pause live scanning while importing
-    setScanning(true);
-
-    if (!mediaPermission?.granted) {
-      const perm = await requestMediaPermission();
-      if (!perm.granted) {
-        // resume live scanning if permission denied
-        setScanning(false);
-        return;
-      }
-    }
-
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: "images",
-      allowsMultipleSelection: false,
-      quality: 1,
-    });
-
-    if (result.canceled || !result.assets?.length) {
-      setScanning(false);
-      return;
-    }
-
-    const uri = result.assets[0].uri;
-
-    const scanResult = await scanFromURLAsync(uri, ["qr"]);
-
-    const referralId = scanResult[0].data;
-
-    router.setParams({ referrerId: referralId });
-    setScanned(true);
-  };
-
   return (
     <View className="mt-safe relative flex-1 bg-white dark:bg-black">
       {scanning && (
@@ -121,12 +85,6 @@ export default function QRScannerView({ onClose }: { onClose?: () => void }) {
           <View className="flex-row items-center gap-2">
             <Ionicons name="chevron-back" size={18} />
             <Text>Back</Text>
-          </View>
-        </Button>
-        <Button onPress={importFromGallery}>
-          <View className="flex-row items-center gap-2">
-            <Ionicons name="qr-code-outline" size={18} />
-            <Text>Import QR code</Text>
           </View>
         </Button>
       </View>

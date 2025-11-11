@@ -33,10 +33,7 @@ export default function SignInScreen() {
     <SafeAreaView className="flex-1 bg-background dark:bg-background">
       <StatusBar style="auto" />
       <LinearGradient
-        colors={[
-          "#72E3AD",
-          "#121212",
-        ]}
+        colors={["#72E3AD", "#121212"]}
         className="absolute inset-0"
         start={{ x: 0.5, y: 0 }}
         end={{ x: 0.5, y: 0.3 }}
@@ -45,16 +42,16 @@ export default function SignInScreen() {
         behavior={Platform.OS === "ios" ? "padding" : undefined}
         className="flex-1 items-center justify-center px-6 gap-8"
       >
-        <View
-          className="h-52 w-52 rounded-3xl overflow-hidden ring-1 ring-primary/20 dark:ring-primary/30 shadow-xl"
-        >
-          <Image
-            source={assets ? { uri: assets[0].uri } : undefined}
-            contentFit="cover"
-            transition={1200}
-            style={styles.image}
-            className="bg-card"
-          />
+        <View className="h-52 w-52 rounded-3xl overflow-hidden ring-1 ring-primary/20 dark:ring-primary/30 shadow-xl">
+          {assets && (
+            <Image
+              source={{ uri: assets[0].uri }}
+              contentFit="cover"
+              transition={1200}
+              style={styles.image}
+              className="bg-card"
+            />
+          )}
           <LinearGradient
             colors={["transparent", "#72E3AD"]}
             className="absolute inset-0"

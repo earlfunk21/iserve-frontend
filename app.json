@@ -2,6 +2,7 @@
   "expo": {
     "name": "iServ",
     "slug": "iserv",
+    "owner": "versa",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -9,7 +10,13 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.versa.iserv",
+      "entitlements": {
+        "keychain-access-groups": [
+          "$(AppIdentifierPrefix)com.versa.iserv"
+        ]
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -20,7 +27,11 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.versa.iserv"
+      "package": "com.versa.iserv",
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "web": {
       "output": "static",
@@ -41,7 +52,12 @@
         }
       ],
       "expo-web-browser",
-      "expo-secure-store",
+      [
+          "expo-secure-store",
+          {
+            "configureAndroidBackup": false
+          }
+        ],
       [
         "expo-camera",
         {
@@ -49,15 +65,27 @@
         }
       ],
       [
-        "expo-asset",
-        {
-          "assets": ["./assets"]
-        }
-      ]
+        "expo-asset"
+      ],
+      "expo-updates"
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "c69941ee-061d-4393-be95-18117b432873"
+      }
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/c69941ee-061d-4393-be95-18117b432873",
+      "fallbackToCacheTimeout": 0,
+      "checkAutomatically": "ON_LOAD"
     }
   }
 }

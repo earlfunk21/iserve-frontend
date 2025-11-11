@@ -16,14 +16,17 @@ import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { SplashScreenController } from "./splash";
 
-function onAppStateChange(status: AppStateStatus) {
-  // React Query already supports in web browser refetch on window focus by default
-  if (Platform.OS !== "web") {
-    focusManager.setFocused(status === "active");
-  }
-}
-
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnReconnect: true,
+      refetchOnMount: true,
+      refetchOnWindowFocus: true,
+      retry: 2,
+      staleTime: 0,
+    },
+  },
+});
 
 type Props = {
   children: React.ReactNode;
@@ -33,7 +36,15 @@ export default function Providers({ children }: Props) {
   const { colorScheme } = useColorScheme();
   useOnlineManager();
 
-  useAppState(onAppStateChange);
+  useAppState((status: AppStateStatus) => {
+    if (Platform.OS !== "web") {
+      const isActive = status === "active";
+      focusManager.setFocused(isActive);
+      if (isActive) {
+        queryClient.invalidateQueries({ queryKey: ["myRooms"] });
+      }
+    }
+  });
 
   return (
     <ThemeProvider value={NAV_THEME[colorScheme ?? "light"]}>
